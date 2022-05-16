@@ -9,6 +9,21 @@
 ##  - Job title  : pulled from "Job Title" header cell in excel file
 ##  - Department : pulled from "Department" header cell in excel file
 ##  - Manager    : **In order to automate this part of the account, an Active Directory account needs to be matched from the contents of "Manager" header cell in the excel file
+##  - Password   : passord is input for each user
+##  - Address    : 
+
+## TODO:
+##
+##  - What building will the user be located at? How does this affect naming convention/other AD attributes?
+##  - What are the min # of permissions that the user deserves based on job title?
+##  - Handle specific password requirement error message
+
+## possible office locations:
+##
+##  - "Boyce HQ"
+##  - "REMOTE"
+##  - "Lafayette, LA"
+##  - NULL
 
 # Selects excel file via file browser
 Add-Type -AssemblyName System.Windows.Forms
@@ -29,9 +44,9 @@ ForEach($WorkSheet in @($Workbook.Worksheets)) {
     $totalNoOfColumns = $WorkSheet.Dimension.Columns
    
     # for every record, iterate through all columns and pull desired information, then add the row information as a new AD user
-    for ($i=2; $i -lt $totalNoOfRecords; $i++) {
+    for ($i=4; $i -lt $totalNoOfRecords; $i++) {
         for ($j=1; $j -lt $totalNoOfColumns; $j++) {
-            if ($WorkSheet.Cells.Item(1,$j).text -eq "Name") {
+            if ($WorkSheet.Cells.Item(3,$j).text -eq "Name") {
                 $name = $WorkSheet.Cells.Item($i,$j).text
                 foreach($_ in $name) {
 		        	$nameOut = $_.split()
@@ -52,23 +67,34 @@ ForEach($WorkSheet in @($Workbook.Worksheets)) {
                 }
             }
 
-            # Check and see if the generated username already exists as a user in Active Directory
+            # check and see if the generated username already exists as a user in Active Directory
             if (Get-ADUser -F { SamAccountName -eq $userName}) {
-                Write-Warning "A user account with username $username already exists in Active Directory."
+                Write-Warning "A user account with username $userName already exists in Active Directory."
                 }
             else {
-                New-ADUser `
-                    -SamAccountName $userName `
-                    -Name "$firstName $lastName" `
-                    -GivenName $firstName `
-                    -Surname $lastName `
-                    -Enabled $True `
-                    -DisplayName "$lastName, $firstName" `
-                    -Title $jobTitle `
-                    -Department $department `
-                    -AccountPassword (ConvertTo-secureString "Enough10degree" -AsPlainText -Force) -ChangePasswordAtLogon $True
+                $meetsRequirements = $false        
+                while (!$meetsRequirements) {
+                    try {
+                        $password = Read-Host "password for ${userName} : "
+                        New-ADUser `
+                            -SamAccountName $userName `
+                            -Name "$firstName $lastName" `
+                            -GivenName $firstName `
+                            -Surname $lastName `
+                            -Enabled $True `
+                            -DisplayName "$lastName, $firstName" `
+                            -Title $jobTitle `
+                            -Department $department `
+                            -AccountPassword (ConvertTo-secureString $password -AsPlainText -Force) -ChangePasswordAtLogon $False
+                            $meetsRequirements = $true
+                        }
+                    catch {
+                        Remove-ADUser -Identity $userName -Confirm:$false
+                        Write-Error "Password requirements not met"
+                        $meetsRequirements = $false
                 
-                Write-Host "The user account $userName has been created." -ForegroundColor Cyan
+                        }
+                    }
                 }
         }
     }
