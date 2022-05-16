@@ -14,9 +14,10 @@
 
 ## TODO:
 ##
-##  - What building will the user be located at? How does this affect naming convention/other AD attributes?
-##  - What are the min # of permissions that the user deserves based on job title?
-##  - Handle specific password requirement error message
+#X  - What building will the user be located at? How does this affect naming convention/other AD attributes?
+#X  - What are the min # of permissions that the user deserves based on job title?
+#X  - Handle specific password requirement error message
+#X  - Only add users to Active Directory if the script executes entirely and sucessfully.
 
 ## possible office locations:
 ##
@@ -56,13 +57,13 @@ ForEach($WorkSheet in @($Workbook.Worksheets)) {
 		        $lastName = $nameOut[1]
 		        $userName = "$firstChar$lastName".ToLower()
                 }
-            elseif ($WorkSheet.Cells.Item(1,$j).text -eq "Job Title") {
+            elseif ($WorkSheet.Cells.Item(3,$j).text -eq "Job Title") {
                 $jobTitle = $WorkSheet.Cells.Item($i,$j).text
                 }
-            elseif ($WorkSheet.Cells.Item(1,$j).text -eq "Manager") {
+            elseif ($WorkSheet.Cells.Item(3,$j).text -eq "Manager") {
                 $manager = $WorkSheet.Cells.Item($i,$j).text
                 }
-            elseif ($WorkSheet.Cells.Item(1,$j).text -eq "Department") {
+            elseif ($WorkSheet.Cells.Item(3,$j).text -eq "Department") {
                 $department = $WorkSheet.Cells.Item($i,$j).text
                 }
             }
@@ -75,22 +76,23 @@ ForEach($WorkSheet in @($Workbook.Worksheets)) {
                 $meetsRequirements = $false        
                 while (!$meetsRequirements) {
                     try {
-                        $password = Read-Host "password for ${userName} : "
+                        Write-Output "jobtitle: $jobTitle"
+                        $password = Read-Host "password for $name (${userName})"
                         New-ADUser `
-                            -SamAccountName $userName `
-                            -Name "$firstName $lastName" `
+                            -Name $name `
                             -GivenName $firstName `
                             -Surname $lastName `
-                            -Enabled $True `
-                            -DisplayName "$lastName, $firstName" `
-                            -Title $jobTitle `
-                            -Department $department `
-                            -AccountPassword (ConvertTo-secureString $password -AsPlainText -Force) -ChangePasswordAtLogon $False
-                            $meetsRequirements = $true
+                            -AccountPassword (ConvertTo-SecureString $password -AsPlainText -Force) -ChangePasswordAtLogon $False
+                            -OtherAttributes @{'title'=$jobTitle; `
+                                               'department'=$department; `
+                                               'displayName'="$lastName, $firstName";}
+
+                           $meetsRequirements = $true
+                           Write-Host "The user account $userName has been created." -ForegroundColor Cyan
                         }
                     catch {
                         Remove-ADUser -Identity $userName -Confirm:$false
-                        Write-Error "Password requirements not met"
+                        Write-Warning "Password requirements not met"
                         $meetsRequirements = $false
                 
                         }
