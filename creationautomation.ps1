@@ -47,6 +47,7 @@ ForEach($WorkSheet in @($Workbook.Worksheets)) {
 
 	$totalNoOfRecords = $WorkSheet.Dimension.Rows
     $totalNoOfColumns = $WorkSheet.Dimension.Columns
+    $ouPath = ""
    
     # for every record, iterate through all columns and pull desired information, then add the row information as a new AD user
     for ($i=4; $i -lt $totalNoOfRecords; $i++) {
@@ -59,7 +60,7 @@ ForEach($WorkSheet in @($Workbook.Worksheets)) {
 		        $firstName = $nameOut[0]
 		        $firstChar = $firstName.substring(0,1)
 		        $lastName = $nameOut[1]
-		        $userName = "$firstChar$lastName".ToLower()
+		        
                 }
             elseif ($WorkSheet.Cells.Item(3,$j).text -eq "Job Title") {
                 $jobTitle = $WorkSheet.Cells.Item($i,$j).text
@@ -73,20 +74,23 @@ ForEach($WorkSheet in @($Workbook.Worksheets)) {
             elseif ($WorkSheet.Cells.Item(3, $j).text -eq "Office Location") {
                 $officeLocation = $WorkSheet.Cells.Item($i,$j).text
                 if ($officeLocation -eq "Everett, WA") {
-                    $ouPath = "ou=Everett,ou=Washington,ou=DwellMtg,ou=Users,ou=Accounts,dc=victorianfinance,dc=local"
+                    $userName = "$firstName".ToLower()
+                    $ouPath = "OU=Everett,OU=Washington,OU=DwellMtg,OU=Users,OU=Accounts,DC=victorianfinance,DC=local"
                     }
-                elseif ($branch -eq "REMOTE") {
-                    $ouPath = "ou=RemoteUsers,ou=Users,ou=Accounts,dc=victorianfinance,dc=local"
+                elseif ($officeLocation -eq "REMOTE") {
+                    $userName = "$firstChar$lastName".ToLower()
+                    $ouPath = "OU=RemoteUsers,OU=Users,OU=Accounts,DC=victorianfinance,DC=local"
                     }
-                elseif ($branch -eq "Boyce HQ") {
-                    $ouPath = "ou=USC,ou=Pennsylvania,ou=Users,ou=Accounts,dc=victorianfinance,dc=local"
-                    }
-                
+                elseif ($officeLocation -eq "Boyce HQ") {
+                    $userName = "$firstChar$lastName".ToLower()
+                    $ouPath = "OU=USC,OU=Pennsylvania,OU=Users,OU=Accounts,DC=victorianfinance,DC=local"
+                    }                
                 }
             }
 
             # check and see if the generated username already exists as a user in Active Directory
-            if (Get-ADUser -F { userPrincipalName -eq $userName} -SearchBase "$ouPath") {
+            #Write-Output $ouPath
+            if (Get-ADUser -SearchBase $ouPath -F { SAMAccountName -eq $userName} ) {
                 Write-Warning "A user account with username $userName already exists in Active Directory path $oupath."
                 }
             else {
