@@ -70,16 +70,14 @@ ForEach($WorkSheet in @($Workbook.Worksheets)) {
             elseif ($WorkSheet.Cells.Item(3,$j).text -eq "Department") {
                 $department = $WorkSheet.Cells.Item($i,$j).text
                 }
+            elseif ($WorkSheet.Cells.Item(3, $j).text -eq "Office Location") {
+                $officeLocation = $WorkSheet.Cells.Item($i,$j).text
+                if ($officeLocation -eq "Everett, WA") {
+                    $ouPath = "ou=Everett,ou=Washington,ou=DwellMtg,ou=Users,ou=Accounts,dc=victorianfinance,dc=local"
+                    }
+                
+                }
             }
-
-            # parameters for where the users will be created
-            $commonName = $name
-            $county = "usc"
-            $state = "pennsylvania"
-            $domain = "zacklabs"
-            $domainExt = "com"
-
-
 
             # check and see if the generated username already exists as a user in Active Directory
             if (Get-ADUser -F { userPrincipalName -eq $userName}) {
@@ -91,7 +89,7 @@ ForEach($WorkSheet in @($Workbook.Worksheets)) {
                     try {
                         $password = Read-Host "password for $name (${userName})"
                         New-ADUser `
-                            -Path "cn=$commonName,cn=$userName,ou=$county,ou=$state,ou=users,ou=accounts,dc=$domain,dc=$domainExt" `
+                            -Path $ouPath `
                             -Name $name `
                             -GivenName $firstName `
                             -Surname $lastName `
