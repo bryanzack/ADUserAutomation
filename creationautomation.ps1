@@ -98,7 +98,7 @@ ForEach($WorkSheet in @($Workbook.Worksheets)) {
                 $meetsRequirements = $false        
                 while (!$meetsRequirements) {
                     try {
-                        $password = Read-Host "password for $name (${userName})"
+                        $password = Read-Host "password for $name $userName"
                         New-ADUser `
                             -Path $ouPath `
                             -Name $name `
