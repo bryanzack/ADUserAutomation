@@ -36,7 +36,7 @@ $FileBrowser = New-Object System.Windows.Forms.OpenFileDialog
 $ExcelFile = $FileBrowser.FileName
 
 # Imports necessary modules / creates Excel object to be iterated through
-Install-Module -Name PSExcel
+#Install-Module -Name PSExcel
 Import-Module PSExcel
 Import-Module ActiveDirectory
 $objExcel = New-Excel -Path $ExcelFile
@@ -75,13 +75,19 @@ ForEach($WorkSheet in @($Workbook.Worksheets)) {
                 if ($officeLocation -eq "Everett, WA") {
                     $ouPath = "ou=Everett,ou=Washington,ou=DwellMtg,ou=Users,ou=Accounts,dc=victorianfinance,dc=local"
                     }
+                elseif ($branch -eq "REMOTE") {
+                    $ouPath = "ou=RemoteUsers,ou=Users,ou=Accounts,dc=victorianfinance,dc=local"
+                    }
+                elseif ($branch -eq "Boyce HQ") {
+                    $ouPath = "ou=USC,ou=Pennsylvania,ou=Users,ou=Accounts,dc=victorianfinance,dc=local"
+                    }
                 
                 }
             }
 
             # check and see if the generated username already exists as a user in Active Directory
-            if (Get-ADUser -F { userPrincipalName -eq $userName}) {
-                Write-Warning "A user account with username $userName already exists in Active Directory."
+            if (Get-ADUser -F { userPrincipalName -eq $userName} -SearchBase $ouPath) {
+                Write-Warning "A user account with username $userName already exists in Active Directory path $oupath."
                 }
             else {
                 $meetsRequirements = $false        
