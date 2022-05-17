@@ -3,31 +3,27 @@
 
 ## Desired information:
 ##
-##  - First name : pulled from "Name" header cell in excel file
-##  - Last name  : pulled from "Name" header cell in excel file
-##  - Username   : $lastName appended to the first letter of $firstName (Currently this is hard-coded for VicFin naming convention)
-##  - Job title  : pulled from "Job Title" header cell in excel file
-##  - Department : pulled from "Department" header cell in excel file
-##  - Manager    : **In order to automate this part of the account, an Active Directory account needs to be matched from the contents of "Manager" header cell in the excel file
-##  - Password   : passord is input for each user
-##  - Address    : 
+##  - First name      : pulled from "Name" header cell in excel file
+##  - Last name       : pulled from "Name" header cell in excel file
+##  - Username        : $lastName appended to the first letter of $firstName (Currently this is hard-coded for VicFin naming convention)
+##  - Job title       : pulled from "Job Title" header cell in excel file
+##  - Department      : pulled from "Department" header cell in excel file
+##  - Manager         : **In order to automate this part of the account, an Active Directory account needs to be matched from the contents of "Manager" header cell in the excel file
+##  - Password        : passord is input for each user
+##  - Office Location : this value is taken and used to search the active directory ou exactly where each user should be to determine if it exists, or not
 
 ## TODO:
 ##
-#X  - What building will the user be located at? How does this affect naming convention/other AD attributes?
-#X  - What are the min # of permissions that the user deserves based on job title?
-#X  - Handle specific password requirement error message
-#X  - Only add users to Active Directory if the script executes entirely and sucessfully.
+##  - What are the min # of permissions that the user deserves based on job title?
+##  - Only add users to Active Directory if the script executes entirely and sucessfully.
 ##  - Add company address given Monday.com information
-##  - Create templates for different kinds of users in each department
-##  - properly decide whhich OU path destination to create the user in given info from monday.com
+##  - Create templates for different kinds of users in each department for permission groups
 
-## possible office locations:
+## office locations implemented so far:
 ##
 ##  - "Boyce HQ"
 ##  - "REMOTE"
-##  - "Lafayette, LA"
-##  - NULL
+##  - "Everett, WA"
 
 # Selects excel file via file browser
 Add-Type -AssemblyName System.Windows.Forms
@@ -35,7 +31,8 @@ $FileBrowser = New-Object System.Windows.Forms.OpenFileDialog
 [void]$FileBrowser.ShowDialog()
 $ExcelFile = $FileBrowser.FileName
 
-# Imports necessary modules / creates Excel object to be iterated through
+# Imports necessary modules / creates Excel object to be iterated through. 
+# Comment out the Install-Module statement if running offline
 #Install-Module -Name PSExcel
 Import-Module PSExcel
 Import-Module ActiveDirectory
@@ -47,11 +44,11 @@ ForEach($WorkSheet in @($Workbook.Worksheets)) {
 
 	$totalNoOfRecords = $WorkSheet.Dimension.Rows
     $totalNoOfColumns = $WorkSheet.Dimension.Columns
-    $ouPath = ""
    
     # for every record, iterate through all columns and pull desired information, then add the row information as a new AD user
     for ($i=4; $i -lt $totalNoOfRecords; $i++) {
         for ($j=1; $j -lt $totalNoOfColumns; $j++) {
+            # if header cell contains Name
             if ($WorkSheet.Cells.Item(3,$j).text -eq "Name") {
                 $name = $WorkSheet.Cells.Item($i,$j).text
                 foreach($_ in $name) {
@@ -62,15 +59,19 @@ ForEach($WorkSheet in @($Workbook.Worksheets)) {
 		        $lastName = $nameOut[1]
 		        
                 }
+            # if header cell contains Job Title
             elseif ($WorkSheet.Cells.Item(3,$j).text -eq "Job Title") {
                 $jobTitle = $WorkSheet.Cells.Item($i,$j).text
                 }
+            # if header cell contains Manager
             elseif ($WorkSheet.Cells.Item(3,$j).text -eq "Manager") {
                 $manager = $WorkSheet.Cells.Item($i,$j).text
                 }
+            # if header cell contains Department
             elseif ($WorkSheet.Cells.Item(3,$j).text -eq "Department") {
                 $department = $WorkSheet.Cells.Item($i,$j).text
                 }
+            # if header cell contains Office Location / also handles OU path locations and their respective naming conventions
             elseif ($WorkSheet.Cells.Item(3, $j).text -eq "Office Location") {
                 $officeLocation = $WorkSheet.Cells.Item($i,$j).text
                 if ($officeLocation -eq "Everett, WA") {
@@ -88,8 +89,7 @@ ForEach($WorkSheet in @($Workbook.Worksheets)) {
                 }
             }
 
-            # check and see if the generated username already exists as a user in Active Directory
-            #Write-Output $ouPath
+            # check and see if the generated username already exists as a user in the respective OU in Active Directory
             if (Get-ADUser -SearchBase $ouPath -F { SAMAccountName -eq $userName} ) {
                 Write-Warning "A user account with username $userName already exists in Active Directory path $oupath."
                 }
