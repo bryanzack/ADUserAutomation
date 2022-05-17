@@ -18,6 +18,7 @@
 ##  - Only add users to Active Directory if the script executes entirely and sucessfully.
 ##  - Add company address given Monday.com information
 ##  - Create templates for different kinds of users in each department for permission groups
+##  - leave manager field blank if none is given, if it is given, assign manager to user
 
 ## office locations implemented so far:
 ##
