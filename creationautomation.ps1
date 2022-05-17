@@ -18,6 +18,9 @@
 #X  - What are the min # of permissions that the user deserves based on job title?
 #X  - Handle specific password requirement error message
 #X  - Only add users to Active Directory if the script executes entirely and sucessfully.
+##  - Add company address given Monday.com information
+##  - Create templates for different kinds of users in each department
+##  - properly decide whhich OU path destination to create the user in given info from monday.com
 
 ## possible office locations:
 ##
@@ -68,6 +71,14 @@ ForEach($WorkSheet in @($Workbook.Worksheets)) {
                 }
             }
 
+            # parameters for where the users will be created
+            $county = "usc"
+            $state = "pennsylvania"
+            $domain = "zacklabs"
+            $domainExt = "com"
+
+
+
             # check and see if the generated username already exists as a user in Active Directory
             if (Get-ADUser -F { SamAccountName -eq $userName}) {
                 Write-Warning "A user account with username $userName already exists in Active Directory."
@@ -76,13 +87,14 @@ ForEach($WorkSheet in @($Workbook.Worksheets)) {
                 $meetsRequirements = $false        
                 while (!$meetsRequirements) {
                     try {
-                        Write-Output "jobtitle: $jobTitle"
                         $password = Read-Host "password for $name (${userName})"
                         New-ADUser `
-                            -Name $name `
+                            -Path "ou=$county,ou=$state,ou=users,ou=accounts,dc=$domain,dc=$domainExt" `
+                            -Name "$Name" `
                             -GivenName $firstName `
                             -Surname $lastName `
-                            -AccountPassword (ConvertTo-SecureString $password -AsPlainText -Force) -ChangePasswordAtLogon $False
+                            -Manager $manager `
+                            -AccountPassword (ConvertTo-SecureString $password -AsPlainText -Force) -ChangePasswordAtLogon $False `
                             -OtherAttributes @{'title'=$jobTitle; `
                                                'department'=$department; `
                                                'displayName'="$lastName, $firstName";}
@@ -90,8 +102,13 @@ ForEach($WorkSheet in @($Workbook.Worksheets)) {
                            $meetsRequirements = $true
                            Write-Host "The user account $userName has been created." -ForegroundColor Cyan
                         }
+                    catch [Microsoft.ActiveDirectory.Management.ADIdentityResolutionException] {
+                        Write-Warning "Manager '$manager' was not found, ensure that the designated manager for '$name' is correct and try again. Previously added users will persist in AD."
+                        exit
+                    }
                     catch {
-                        Remove-ADUser -Identity $userName -Confirm:$false
+                        Write-Output $_ # prints out exact error message
+                        Remove-ADUser -Identity $Name -Confirm:$false
                         Write-Warning "Password requirements not met"
                         $meetsRequirements = $false
                 
