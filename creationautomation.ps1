@@ -33,9 +33,10 @@
 Add-Type -AssemblyName System.Windows.Forms
 $FileBrowser = New-Object System.Windows.Forms.OpenFileDialog
 [void]$FileBrowser.ShowDialog()
-$ExcelFile = $FileBrowser.FileName 
+$ExcelFile = $FileBrowser.FileName
 
 # Imports necessary modules / creates Excel object to be iterated through
+Install-Module -Name PSExcel
 Import-Module PSExcel
 Import-Module ActiveDirectory
 $objExcel = New-Excel -Path $ExcelFile
@@ -72,6 +73,7 @@ ForEach($WorkSheet in @($Workbook.Worksheets)) {
             }
 
             # parameters for where the users will be created
+            $commonName = $name
             $county = "usc"
             $state = "pennsylvania"
             $domain = "zacklabs"
@@ -80,7 +82,7 @@ ForEach($WorkSheet in @($Workbook.Worksheets)) {
 
 
             # check and see if the generated username already exists as a user in Active Directory
-            if (Get-ADUser -F { SamAccountName -eq $userName}) {
+            if (Get-ADUser -F { userPrincipalName -eq $userName}) {
                 Write-Warning "A user account with username $userName already exists in Active Directory."
                 }
             else {
@@ -89,29 +91,34 @@ ForEach($WorkSheet in @($Workbook.Worksheets)) {
                     try {
                         $password = Read-Host "password for $name (${userName})"
                         New-ADUser `
-                            -Path "ou=$county,ou=$state,ou=users,ou=accounts,dc=$domain,dc=$domainExt" `
-                            -Name "$Name" `
+                            -Path "cn=$commonName,cn=$userName,ou=$county,ou=$state,ou=users,ou=accounts,dc=$domain,dc=$domainExt" `
+                            -Name $name `
                             -GivenName $firstName `
                             -Surname $lastName `
-                            -Manager $manager `
                             -AccountPassword (ConvertTo-SecureString $password -AsPlainText -Force) -ChangePasswordAtLogon $False `
                             -OtherAttributes @{'title'=$jobTitle; `
                                                'department'=$department; `
-                                               'displayName'="$lastName, $firstName";}
+                                               'displayName'="$lastName, $firstName"; `
+                                               'userPrincipalName'=$userName; `
+                                               'manager'=$manager} `
 
                            $meetsRequirements = $true
                            Write-Host "The user account $userName has been created." -ForegroundColor Cyan
                         }
-                    catch [Microsoft.ActiveDirectory.Management.ADIdentityResolutionException] {
-                        Write-Warning "Manager '$manager' was not found, ensure that the designated manager for '$name' is correct and try again. Previously added users will persist in AD."
-                        exit
-                    }
-                    catch {
-                        Write-Output $_ # prints out exact error message
+                    # handles password complexity exception
+                    catch [Microsoft.ActiveDirectory.Management.ADPasswordComplexityException] {
+                        #Write-Output $_ # prints out exact error message
                         Remove-ADUser -Identity $Name -Confirm:$false
                         Write-Warning "Password requirements not met"
                         $meetsRequirements = $false
-                
+                        }
+                    # handles managernotfound exception
+                    catch [Microsoft.ActiveDirectory.Management.ADIdentityResolutionException] {
+                        Write-Warning "Manager '$manager' was not found, ensure that the designated manager for '$name' is correct and try again. Previously added users will persist in AD." -ErrorAction Continue
+                    }
+                    # handles any other exception and writes it to host
+                    catch {
+                        Write-Output $_
                         }
                     }
                 }
