@@ -86,7 +86,7 @@ ForEach($WorkSheet in @($Workbook.Worksheets)) {
             }
 
             # check and see if the generated username already exists as a user in Active Directory
-            if (Get-ADUser -F { userPrincipalName -eq $userName} -SearchBase $ouPath) {
+            if (Get-ADUser -F { userPrincipalName -eq $userName} -SearchBase "$ouPath") {
                 Write-Warning "A user account with username $userName already exists in Active Directory path $oupath."
                 }
             else {
