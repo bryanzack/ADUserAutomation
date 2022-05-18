@@ -55,6 +55,10 @@ ForEach($WorkSheet in @($Workbook.Worksheets)) {
             # if header cell contains Name
             if ($WorkSheet.Cells.Item(3,$j).text -eq "Name") {
                 $name = $WorkSheet.Cells.Item($i,$j).text
+                if ($name -match '!|@|#|\$') {
+                    Write-Warning "Name '$name' contains illegal characters"
+                    $name = Read-Host "New name for '$name'"
+                    }
                 foreach($_ in $name) {
 		        	$nameOut = $_.split()
 		        }
