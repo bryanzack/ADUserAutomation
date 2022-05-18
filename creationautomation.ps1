@@ -40,8 +40,8 @@ Import-Module ActiveDirectory
 $objExcel = New-Excel -Path $ExcelFile
 $WorkBook = $objExcel | Get-Workbook
 
-$domain = "zacklabs"
-$domaniExt = "com"
+$domain = "victorianfinance"
+$domainExt = "local"
 
 # Iterate through each worksheet (only 1 is included in the downloadable Excel file from monday.com)
 ForEach($WorkSheet in @($Workbook.Worksheets)) {
@@ -93,21 +93,21 @@ ForEach($WorkSheet in @($Workbook.Worksheets)) {
                 $officeLocation = $WorkSheet.Cells.Item($i,$j).text
                 if ($officeLocation -eq "Everett, WA") {
                     $userName = "$firstName".ToLower()
-                    $ouPath = "OU=Everett,OU=Washington,OU=DwellMtg,OU=Users,OU=Accounts,DC=zacklabs,DC=com"
+                    $ouPath = "OU=Everett,OU=Washington,OU=DwellMtg,OU=Users,OU=Accounts,DC=$domain,DC=$domainExt"
                     }
                 elseif ($officeLocation -eq "REMOTE") {
                     $userName = "$firstChar$lastName".ToLower()
-                    $ouPath = "OU=RemoteUsers,OU=Users,OU=Accounts,DC=zacklabs,DC=com"
+                    $ouPath = "OU=RemoteUsers,OU=Users,OU=Accounts,DC=$domain,DC=$domainExt"
                     }
                 elseif ($officeLocation -eq "Boyce HQ") {
                     $userName = "$firstChar$lastName".ToLower()
-                    $ouPath = "OU=USC,OU=Pennsylvania,OU=Users,OU=Accounts,DC=zacklabs,DC=com"
+                    $ouPath = "OU=USC,OU=Pennsylvania,OU=Users,OU=Accounts,DC=$domain,DC=$domainExt"
                     }                
                 }
             }
 
             # check and see if the generated username already exists as a user in the respective OU in Active Directory
-            if (Get-ADUser -SearchBase $ouPath -F { userprincipalname -eq $userName} ) {
+            if (Get-ADUser -SearchBase $ouPath -F { samaccountname -eq $userName} ) {
                 Write-Warning "A user account with username $userName already exists in Active Directory path $oupath."
                 }
             else {
