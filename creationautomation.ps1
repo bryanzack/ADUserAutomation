@@ -15,10 +15,8 @@
 ## TODO:
 ##
 ##  - What are the min # of permissions that the user deserves based on job title?
-##  - Only add users to Active Directory if the script executes entirely and sucessfully.
-##  - Add company address given Monday.com information
-##  - Create templates for different kinds of users in each department for permission groups
 ##  - leave manager field blank if none is given, if it is given, assign manager to user
+##  - be able to handle username concatenation when given a Name monday.com header value that is more than 2 words/has unexpected characters
 
 ## office locations implemented so far:
 ##
@@ -40,8 +38,8 @@ Import-Module ActiveDirectory
 $objExcel = New-Excel -Path $ExcelFile
 $WorkBook = $objExcel | Get-Workbook
 
-$domain = "victorianfinance"
-$domainExt = "local"
+$domain = "zacklabs"
+$domainExt = "com"
 
 # Iterate through each worksheet (only 1 is included in the downloadable Excel file from monday.com)
 ForEach($WorkSheet in @($Workbook.Worksheets)) {
@@ -93,16 +91,44 @@ ForEach($WorkSheet in @($Workbook.Worksheets)) {
                 $officeLocation = $WorkSheet.Cells.Item($i,$j).text
                 if ($officeLocation -eq "Everett, WA") {
                     $userName = "$firstName".ToLower()
+                    $upnSuffix = "@dwellmtg.com"
+                    $streetAddress = "2707 Colby Ave, Ste 1212"
+                    $company = "DwellMTG"
+                    $city = "Everett"
+                    $state = "WA"
+                    $zipCode = "98201"
                     $ouPath = "OU=Everett,OU=Washington,OU=DwellMtg,OU=Users,OU=Accounts,DC=$domain,DC=$domainExt"
                     }
                 elseif ($officeLocation -eq "REMOTE") {
                     $userName = "$firstChar$lastName".ToLower()
+                    $upnSuffix = "@victorianfinance.com"
+                    $streetAddress = "2570 Boyce Plaza Rd"
+                    $company = "Victorian Finance, LLC"
+                    $city = "Pittsburgh"
+                    $state = "PA"
+                    $zipCode = "15241"
                     $ouPath = "OU=RemoteUsers,OU=Users,OU=Accounts,DC=$domain,DC=$domainExt"
                     }
                 elseif ($officeLocation -eq "Boyce HQ") {
                     $userName = "$firstChar$lastName".ToLower()
+                    $upnSuffix = "@victorianfinance.com"
+                    $streetAddress = "2570 Boyce Plaza Rd"
+                    $company = "Victorian Finance, LLC"
+                    $city = "Pittsburgh"
+                    $state = "PA"
+                    $zipCode = "15241"
                     $ouPath = "OU=USC,OU=Pennsylvania,OU=Users,OU=Accounts,DC=$domain,DC=$domainExt"
-                    }                
+                    }
+                elseif ($officeLocation -eq "Lafayette, LA") {
+                    $userName = $firstName.ToLower()
+                    $upnSuffix = "@completemortgagela.com"
+                    $streetAddress = "100 Asma Blvd, Suite 100"
+                    $company = "The Complete Mortgage Team"
+                    $city = "Lafayette"
+                    $state = "La"
+                    $zipCode = "70506"
+                    $ouPath = "OU=Louisiana,OU=Users,OU=Accounts,DC=$domain,DC=$domainExt"
+                    }             
                 }
             }
 
@@ -112,22 +138,29 @@ ForEach($WorkSheet in @($Workbook.Worksheets)) {
                 }
             else {
                 #$ouPath = "OU=USC,OU=Pennsylvania,OU=Users,OU=Accounts,DC=zacklabs,DC=com"
-                Write-Output $ouPath
+                #Write-Output $ouPath
+                $upnSuffix = "@zacklabs.com"
                 $meetsRequirements = $false        
                 while (!$meetsRequirements) {
                     try {
-                        $password = Read-Host "password for $name $userName"
+                        $password = Read-Host "password for $name ($userName)"
                         New-ADUser `
                             -Enabled $true `
                             -Path $ouPath `
                             -Name $name `
+                            -SamAccountName $userName `
                             -GivenName $firstName `
                             -Surname $lastName `
+                            -Company $company `
+                            -Street $streetAddress `
+                            -City $city `
+                            -State $state `
+                            -postalCode $zipCode `
                             -AccountPassword (ConvertTo-SecureString $password -AsPlainText -Force) -ChangePasswordAtLogon $False `
                             -OtherAttributes @{'title'=$jobTitle; `
                                                'department'=$department; `
                                                'displayName'="$lastName, $firstName"; `
-                                               'userPrincipalName'=$userName} `
+                                               'userPrincipalName'="$userName$upnSuffix";} `
 
                            $meetsRequirements = $true
                            Write-Host "The user account $userName has been created." -ForegroundColor Cyan
@@ -135,7 +168,7 @@ ForEach($WorkSheet in @($Workbook.Worksheets)) {
                     # handles password complexity exception
                     catch [Microsoft.ActiveDirectory.Management.ADPasswordComplexityException] {
                         #Write-Output $_ # prints out exact error message
-                        Remove-ADUser -Identity $Name -Confirm:$false
+                        Remove-ADUser -Identity $userName -Confirm:$false
                         Write-Warning "Password requirements not met"
                         $meetsRequirements = $false
                         }
