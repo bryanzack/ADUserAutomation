@@ -97,6 +97,7 @@ ForEach($WorkSheet in @($Workbook.Worksheets)) {
                     $city = "Everett"
                     $state = "WA"
                     $zipCode = "98201"
+                    $emailAddress = "$userName$upnSuffix"
                     $ouPath = "OU=Everett,OU=Washington,OU=DwellMtg,OU=Users,OU=Accounts,DC=$domain,DC=$domainExt"
                     }
                 elseif ($officeLocation -eq "REMOTE") {
@@ -107,6 +108,7 @@ ForEach($WorkSheet in @($Workbook.Worksheets)) {
                     $city = "Pittsburgh"
                     $state = "PA"
                     $zipCode = "15241"
+                    $emailAddress = "$userName$upnSuffix"
                     $ouPath = "OU=RemoteUsers,OU=Users,OU=Accounts,DC=$domain,DC=$domainExt"
                     }
                 elseif ($officeLocation -eq "Boyce HQ") {
@@ -117,6 +119,7 @@ ForEach($WorkSheet in @($Workbook.Worksheets)) {
                     $city = "Pittsburgh"
                     $state = "PA"
                     $zipCode = "15241"
+                    $emailAddress = "$userName$upnSuffix"
                     $ouPath = "OU=USC,OU=Pennsylvania,OU=Users,OU=Accounts,DC=$domain,DC=$domainExt"
                     }
                 elseif ($officeLocation -eq "Lafayette, LA") {
@@ -127,6 +130,7 @@ ForEach($WorkSheet in @($Workbook.Worksheets)) {
                     $city = "Lafayette"
                     $state = "La"
                     $zipCode = "70506"
+                    $emailAddress = "$userName$upnSuffix"
                     $ouPath = "OU=Louisiana,OU=Users,OU=Accounts,DC=$domain,DC=$domainExt"
                     }             
                 }
@@ -147,6 +151,7 @@ ForEach($WorkSheet in @($Workbook.Worksheets)) {
                         New-ADUser `
                             -Enabled $true `
                             -Path $ouPath `
+                            -Mail $emailAddress `
                             -Name $name `
                             -SamAccountName $userName `
                             -GivenName $firstName `
