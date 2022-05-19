@@ -17,6 +17,7 @@
 ##  - What are the min # of permissions that the user deserves based on job title?
 ##  - leave manager field blank if none is given, if it is given, assign manager to user
 ##  - be able to handle username concatenation when given a Name monday.com header value that is more than 2 words/has unexpected characters
+##  - if user does exist, make sure all attributes match that of excel, if they do not, update them
 
 ## office locations implemented so far:
 ##
@@ -138,7 +139,42 @@ ForEach($WorkSheet in @($Workbook.Worksheets)) {
 
             # check and see if the generated username already exists as a user in the respective OU in Active Directory
             if (Get-ADUser -SearchBase $ouPath -F { samaccountname -eq $userName} ) {
-                Write-Warning "A user account with username $userName already exists in Active Directory path $oupath."
+                Write-Warning "A user account with username $userName already exists in Active Directory. Checking for discrepancies..."
+                hasDiscrepancy = $false
+                if ((Get-ADUser -SearchBase $ouPath -F {street -ne $streetAddress}) -or 
+                        (Get-ADUser -SearchBase $ouPath -F {company -ne $company}) -or
+                        (Get-ADUser -SearchBase $ouPath -F {city -ne $city}) -or
+                        (Get-ADUser -SearchBase $ouPath -F {state -ne $state}) -or
+                        (Get-ADUser -SearchBase $ouPath -F {postalcode -ne $zipCode}) -or
+                        (Get-ADUser -SearchBase $ouPath -F {emailaddress -ne $emailAddress})){
+
+                    hasDiscrepancy = $true
+                    }
+                $answer = Read-Host "Discrepancy found, overwrite existing AD info with Excel data? (y/n)"
+                if ($answer -eq "y") {
+                    Set-ADUser `
+                            -Identity $userName `
+                            -Enabled $true `
+                            -SamAccountName $userName `
+                            -GivenName $firstName `
+                            -Surname $lastName `
+                            -Company $company `
+                            -Street $streetAddress `
+                            -City $city `
+                            -State $state `
+                            -postalCode $zipCode `
+                            -Title $jobTitle `
+                            -Department $department `
+                            -displayName $displayName `
+                            -userPrincipalName "$userName$upnSuffix" `
+                            -EmailAddress $emailAddress `
+                    Write-Host "Updated user $userName" -ForegroundColor Cyan
+                    }
+                else {
+                continue
+                    }
+
+
                 }
             else {
                 #$ouPath = "OU=USC,OU=Pennsylvania,OU=Users,OU=Accounts,DC=zacklabs,DC=com"
@@ -151,7 +187,6 @@ ForEach($WorkSheet in @($Workbook.Worksheets)) {
                         New-ADUser `
                             -Enabled $true `
                             -Path $ouPath `
-                            -Mail $emailAddress `
                             -Name $name `
                             -SamAccountName $userName `
                             -GivenName $firstName `
@@ -165,7 +200,8 @@ ForEach($WorkSheet in @($Workbook.Worksheets)) {
                             -OtherAttributes @{'title'=$jobTitle; `
                                                'department'=$department; `
                                                'displayName'="$lastName, $firstName"; `
-                                               'userPrincipalName'="$userName$upnSuffix";} `
+                                               'userPrincipalName'="$userName$upnSuffix"; `
+                                               'mail'=$emailAddress} `
 
                            $meetsRequirements = $true
                            Write-Host "The user account $userName has been created." -ForegroundColor Cyan
