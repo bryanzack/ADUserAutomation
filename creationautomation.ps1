@@ -17,6 +17,7 @@
 ##  - What are the min # of permissions that the user deserves based on job title?
 ##  - leave manager field blank if none is given, if it is given, assign manager to user
 ##  - be able to handle username concatenation when given a Name monday.com header value that is more than 2 words/has unexpected characters
+##  - if user does exist, make sure all attributes match that of excel, if they do not, update them
 
 ## office locations implemented so far:
 ##
@@ -132,13 +133,17 @@ ForEach($WorkSheet in @($Workbook.Worksheets)) {
                     $zipCode = "70506"
                     $emailAddress = "$userName$upnSuffix"
                     $ouPath = "OU=Louisiana,OU=Users,OU=Accounts,DC=$domain,DC=$domainExt"
-                    }             
+                    }
+                else {
+                    Write-Warning "Null office location for $firstName $lastName, user not added"
+                    
+                    }            
                 }
             }
 
             # check and see if the generated username already exists as a user in the respective OU in Active Directory
             if (Get-ADUser -SearchBase $ouPath -F { samaccountname -eq $userName} ) {
-                Write-Warning "A user account with username $userName already exists in Active Directory path $oupath."
+                Write-Warning "A user account with username $userName already exists in Active Directory."
                 }
             else {
                 #$ouPath = "OU=USC,OU=Pennsylvania,OU=Users,OU=Accounts,DC=zacklabs,DC=com"
@@ -151,7 +156,6 @@ ForEach($WorkSheet in @($Workbook.Worksheets)) {
                         New-ADUser `
                             -Enabled $true `
                             -Path $ouPath `
-                            -Mail $emailAddress `
                             -Name $name `
                             -SamAccountName $userName `
                             -GivenName $firstName `
@@ -165,7 +169,8 @@ ForEach($WorkSheet in @($Workbook.Worksheets)) {
                             -OtherAttributes @{'title'=$jobTitle; `
                                                'department'=$department; `
                                                'displayName'="$lastName, $firstName"; `
-                                               'userPrincipalName'="$userName$upnSuffix";} `
+                                               'userPrincipalName'="$userName$upnSuffix"; `
+                                               'mail'=$emailAddress} `
 
                            $meetsRequirements = $true
                            Write-Host "The user account $userName has been created." -ForegroundColor Cyan
