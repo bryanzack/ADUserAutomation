@@ -79,6 +79,9 @@ ForEach($WorkSheet in @($Workbook.Worksheets)) {
                 if ($manager -eq $null) {
                     $hasManager = $false
                     }
+                else {
+                    $hasManager = $true
+                    }
                 }
             # if header cell contains Department
             elseif ($WorkSheet.Cells.Item(3,$j).text -eq "Department") {
@@ -100,6 +103,7 @@ ForEach($WorkSheet in @($Workbook.Worksheets)) {
                     $zipCode = "98201"
                     $emailAddress = "$userName$upnSuffix"
                     $ouPath = "OU=Everett,OU=Washington,OU=DwellMtg,OU=Users,OU=Accounts,DC=$domain,DC=$domainExt"
+                    $hasOfficeLocation = $true
                     }
                 elseif ($officeLocation -eq "REMOTE") {
                     $userName = "$firstChar$lastName".ToLower()
@@ -111,6 +115,7 @@ ForEach($WorkSheet in @($Workbook.Worksheets)) {
                     $zipCode = "15241"
                     $emailAddress = "$userName$upnSuffix"
                     $ouPath = "OU=RemoteUsers,OU=Users,OU=Accounts,DC=$domain,DC=$domainExt"
+                    $hasOfficeLocation = $true
                     }
                 elseif ($officeLocation -eq "Boyce HQ") {
                     $userName = "$firstChar$lastName".ToLower()
@@ -122,6 +127,7 @@ ForEach($WorkSheet in @($Workbook.Worksheets)) {
                     $zipCode = "15241"
                     $emailAddress = "$userName$upnSuffix"
                     $ouPath = "OU=USC,OU=Pennsylvania,OU=Users,OU=Accounts,DC=$domain,DC=$domainExt"
+                    $hasOfficeLocation = $true
                     }
                 elseif ($officeLocation -eq "Lafayette, LA") {
                     $userName = $firstName.ToLower()
@@ -133,9 +139,12 @@ ForEach($WorkSheet in @($Workbook.Worksheets)) {
                     $zipCode = "70506"
                     $emailAddress = "$userName$upnSuffix"
                     $ouPath = "OU=Louisiana,OU=Users,OU=Accounts,DC=$domain,DC=$domainExt"
+                    $hasOfficeLocation = $true
                     }
                 else {
-                    Write-Warning "Null office location for $firstName $lastName, user not added"
+                    #Write-Warning "No office location found for $name, AD account will be empty."
+                    $hasOfficeLocation = $false
+                    $username = "$firstChar$lastName".ToLower()
                     
                     }            
                 }
@@ -149,31 +158,40 @@ ForEach($WorkSheet in @($Workbook.Worksheets)) {
                 #$ouPath = "OU=USC,OU=Pennsylvania,OU=Users,OU=Accounts,DC=zacklabs,DC=com"
                 #Write-Output $ouPath
                 $upnSuffix = "@zacklabs.com"
-                $meetsRequirements = $false        
+                $meetsRequirements = $false 
                 while (!$meetsRequirements) {
                     try {
                         $password = Read-Host "password for $name ($userName)"
+                        #Write-Output $hasManager
                         New-ADUser `
-                            -Enabled $true `
-                            -Path $ouPath `
-                            -Name $name `
-                            -SamAccountName $userName `
-                            -GivenName $firstName `
-                            -Surname $lastName `
-                            -Company $company `
-                            -Street $streetAddress `
-                            -City $city `
-                            -State $state `
-                            -postalCode $zipCode `
-                            -AccountPassword (ConvertTo-SecureString $password -AsPlainText -Force) -ChangePasswordAtLogon $False `
-                            -OtherAttributes @{'title'=$jobTitle; `
-                                               'department'=$department; `
-                                               'displayName'="$lastName, $firstName"; `
-                                               'userPrincipalName'="$userName$upnSuffix"; `
-                                               'mail'=$emailAddress} `
+                        -Enabled $true `
+                        -Path $ouPath `
+                        -Name $name `
+                        -SamAccountName $userName `
+                        -GivenName $firstName `
+                        -Surname $lastName `
+                        -Company $company `
+                        -Street $streetAddress `
+                        -City $city `
+                        -State $state `
+                        -postalCode $zipCode `
+                        -AccountPassword (ConvertTo-SecureString $password -AsPlainText -Force) -ChangePasswordAtLogon $False `
+                        -OtherAttributes @{'title'=$jobTitle; `
+                                           'department'=$department; `
+                                           'displayName'="$lastName, $firstName"; `
+                                           'userPrincipalName'="$userName$upnSuffix"; `
+                                           'mail'=$emailAddress;}
+                        $meetsRequirements = $true
+                        Write-Host "The user account $userName has been created." -ForegroundColor Cyan
 
-                           $meetsRequirements = $true
-                           Write-Host "The user account $userName has been created." -ForegroundColor Cyan
+                        if ($hasManager = $true) {
+                            #$targetManager = Get-ADUser -Identity $manager
+                            Set-ADUser -Identity $userName -Manager $manager
+                            
+                            }
+                        else {
+                            Write-Warning "No manager was given for $firstName $lastname so they were created without one."
+                            }
                         }
                     # handles password complexity exception
                     catch [Microsoft.ActiveDirectory.Management.ADPasswordComplexityException] {
@@ -184,7 +202,8 @@ ForEach($WorkSheet in @($Workbook.Worksheets)) {
                         }
                     # handles managernotfound exception
                     catch [Microsoft.ActiveDirectory.Management.ADIdentityResolutionException] {
-                        #Write-Warning "Manager '$manager' was not found, ensure that the designated manager for '$name' is correct and try again. Previously added users will persist in AD." -ErrorAction Exit
+                        Write-Warning "Manager '$manager' was not found, user $userName was created without one." -ErrorAction Ignore
+                        
                     }
                     # handles any other exception and writes it to host
                     catch {
