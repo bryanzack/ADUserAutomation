@@ -39,8 +39,8 @@ Import-Module ActiveDirectory
 $objExcel = New-Excel -Path $ExcelFile
 $WorkBook = $objExcel | Get-Workbook
 
-$domain = "zacklabs"
-$domainExt = "com"
+$domain = "victorianfinance"
+$domainExt = "local"
 
 # Iterate through each worksheet (only 1 is included in the downloadable Excel file from monday.com)
 ForEach($WorkSheet in @($Workbook.Worksheets)) {
@@ -151,13 +151,13 @@ ForEach($WorkSheet in @($Workbook.Worksheets)) {
             }
 
             # check and see if the generated username already exists as a user in the respective OU in Active Directory
-            if (Get-ADUser -SearchBase $ouPath -F { samaccountname -eq $userName} ) {
+            if (Get-ADUser -F { samaccountname -eq $userName} ) {
                 Write-Warning "A user account with username $userName already exists in Active Directory."
                 }
             else {
                 #$ouPath = "OU=USC,OU=Pennsylvania,OU=Users,OU=Accounts,DC=zacklabs,DC=com"
                 #Write-Output $ouPath
-                $upnSuffix = "@zacklabs.com"
+                #$upnSuffix = "@zacklabs.com"
                 $meetsRequirements = $false 
                 while (!$meetsRequirements) {
                     try {
