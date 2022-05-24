@@ -76,11 +76,20 @@ ForEach($WorkSheet in @($Workbook.Worksheets)) {
             # if header cell contains Manager
             elseif ($WorkSheet.Cells.Item(3,$j).text -eq "Manager") {
                 $manager = $WorkSheet.Cells.Item($i,$j).text
-                if ($manager -eq $null) {
+                
+                if ($manager -eq "") {
                     $hasManager = $false
                     }
                 else {
                     $hasManager = $true
+                    foreach($_ in $manager) {
+                        $mNameOut = $_.split()
+                        }
+                    #Write-Output "mfirstname: $mNameOut[0]"
+                    $mFirstName = $mNameOut[0]
+                    $mFirstChar = $mFirstName.substring(0,1)
+                    $mLastName = $mNameOut[1]
+                    $manager = "$mFirstChar$mLastName".ToLower()
                     }
                 }
             # if header cell contains Department
@@ -103,7 +112,9 @@ ForEach($WorkSheet in @($Workbook.Worksheets)) {
                     $zipCode = "98201"
                     $emailAddress = "$userName$upnSuffix"
                     $ouPath = "OU=Everett,OU=Washington,OU=DwellMtg,OU=Users,OU=Accounts,DC=$domain,DC=$domainExt"
+                    $ou = "Everett"
                     $hasOfficeLocation = $true
+                    #$manager = "$mFirstName".ToLower()
                     }
                 elseif ($officeLocation -eq "REMOTE") {
                     $userName = "$firstChar$lastName".ToLower()
@@ -115,7 +126,9 @@ ForEach($WorkSheet in @($Workbook.Worksheets)) {
                     $zipCode = "15241"
                     $emailAddress = "$userName$upnSuffix"
                     $ouPath = "OU=RemoteUsers,OU=Users,OU=Accounts,DC=$domain,DC=$domainExt"
+                    $ou = "RemoteUsers"
                     $hasOfficeLocation = $true
+                    #$manager = "$mFirstChar$mLastName".ToLower()
                     }
                 elseif ($officeLocation -eq "Boyce HQ") {
                     $userName = "$firstChar$lastName".ToLower()
@@ -127,7 +140,9 @@ ForEach($WorkSheet in @($Workbook.Worksheets)) {
                     $zipCode = "15241"
                     $emailAddress = "$userName$upnSuffix"
                     $ouPath = "OU=USC,OU=Pennsylvania,OU=Users,OU=Accounts,DC=$domain,DC=$domainExt"
+                    $ou = "USC"
                     $hasOfficeLocation = $true
+                    #$manager = "$mFirstChar$mLastName".ToLower()
                     }
                 elseif ($officeLocation -eq "Lafayette, LA") {
                     $userName = $firstName.ToLower()
@@ -139,7 +154,9 @@ ForEach($WorkSheet in @($Workbook.Worksheets)) {
                     $zipCode = "70506"
                     $emailAddress = "$userName$upnSuffix"
                     $ouPath = "OU=Louisiana,OU=Users,OU=Accounts,DC=$domain,DC=$domainExt"
+                    $ou="Lousiana"
                     $hasOfficeLocation = $true
+                    #$manager = "$mFirstName".ToLower()
                     }
                 else {
                     #Write-Warning "No office location found for $name, AD account will be empty."
@@ -152,7 +169,7 @@ ForEach($WorkSheet in @($Workbook.Worksheets)) {
 
             # check and see if the generated username already exists as a user in the respective OU in Active Directory
             if (Get-ADUser -F { samaccountname -eq $userName} ) {
-                Write-Warning "A user account with username $userName already exists in Active Directory."
+                Write-Warning "User '$userName' already exists in ou '$ou'."
                 }
             else {
                 #$ouPath = "OU=USC,OU=Pennsylvania,OU=Users,OU=Accounts,DC=zacklabs,DC=com"
@@ -182,10 +199,12 @@ ForEach($WorkSheet in @($Workbook.Worksheets)) {
                                            'userPrincipalName'="$userName$upnSuffix"; `
                                            'mail'=$emailAddress;}
                         $meetsRequirements = $true
-                        Write-Host "The user account $userName has been created." -ForegroundColor Cyan
+                        Write-Host "The user account '$userName' has been created." -ForegroundColor Cyan
 
                         if ($hasManager = $true) {
                             #$targetManager = Get-ADUser -Identity $manager
+                            #Write-Output "Adding manager '$manager' to '$userName'"
+                            #Write-Output "userName: $userName manager: $manager"
                             Set-ADUser -Identity $userName -Manager $manager
                             
                             }
@@ -202,7 +221,7 @@ ForEach($WorkSheet in @($Workbook.Worksheets)) {
                         }
                     # handles managernotfound exception
                     catch [Microsoft.ActiveDirectory.Management.ADIdentityResolutionException] {
-                        Write-Warning "Manager '$manager' was not found, user $userName was created without one." -ErrorAction Ignore
+                        Write-Warning "Manager '$manager' was not found, user '$userName' was created without one." -ErrorAction Ignore
                         
                     }
                     # handles any other exception and writes it to host
@@ -211,5 +230,6 @@ ForEach($WorkSheet in @($Workbook.Worksheets)) {
                         }
                     }
                 }
+                Write-Output " "
         }
     }
