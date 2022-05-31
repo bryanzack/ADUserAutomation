@@ -130,8 +130,8 @@ ForEach($WorkSheet in @($Workbook.Worksheets)) {
                         $state = "WA"
                         $zipCode = "98201"
                         $emailAddress = "$userName$upnSuffix"
-                        $ouPath = "OU=Everett,OU=Washington,OU=DwellMtg,OU=Users,OU=Accounts,DC=$domain,DC=$domainExt"
-                        $ou = "Everett"
+                        $ouPath = "OU=RemoteUsers,OU=Users,OU=Accounts,DC=$domain,DC=$domainExt"
+                        $ou = "RemoteUsers"
                         $hasOfficeLocation = $true
                         }
                     elseif ($branch -eq "10000-Corporate") {
