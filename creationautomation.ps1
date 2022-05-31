@@ -99,6 +99,10 @@ ForEach($WorkSheet in @($Workbook.Worksheets)) {
                     $department = "N/A"
                     }
                 }
+            # if header cell is 'Branch'
+            elseif ($WorkSheet.Cells.item(3,$j).text -eq "Branch") {
+                $branch = $WorkSheet.Cells.Item($i,$j).text
+                }
             # if header cell contains Office Location / also handles OU path locations and their respective naming conventions
             elseif ($WorkSheet.Cells.Item(3, $j).text -eq "Office Location") {
                 $officeLocation = $WorkSheet.Cells.Item($i,$j).text
@@ -117,18 +121,48 @@ ForEach($WorkSheet in @($Workbook.Worksheets)) {
                     #$manager = "$mFirstName".ToLower()
                     }
                 elseif ($officeLocation -eq "REMOTE") {
-                    $userName = "$firstChar$lastName".ToLower()
-                    $upnSuffix = "@victorianfinance.com"
-                    $streetAddress = "2570 Boyce Plaza Rd"
-                    $company = "Victorian Finance, LLC"
-                    $city = "Pittsburgh"
-                    $state = "PA"
-                    $zipCode = "15241"
-                    $emailAddress = "$userName$upnSuffix"
-                    $ouPath = "OU=RemoteUsers,OU=Users,OU=Accounts,DC=$domain,DC=$domainExt"
-                    $ou = "RemoteUsers"
-                    $hasOfficeLocation = $true
-                    #$manager = "$mFirstChar$mLastName".ToLower()
+                    if ($branch -eq "7-Everett, WA") {
+                        $userName = "$firstName".ToLower()
+                        $upnSuffix = "@dwellmtg.com"
+                        $streetAddress = "2707 Colby Ave, Ste 1212"
+                        $company = "DwellMTG"
+                        $city = "Everett"
+                        $state = "WA"
+                        $zipCode = "98201"
+                        $emailAddress = "$userName$upnSuffix"
+                        $ouPath = "OU=Everett,OU=Washington,OU=DwellMtg,OU=Users,OU=Accounts,DC=$domain,DC=$domainExt"
+                        $ou = "Everett"
+                        $hasOfficeLocation = $true
+                        }
+                    elseif ($branch -eq "10000-Corporate") {
+                        $userName = "$firstChar$lastName".ToLower()
+                        $upnSuffix = "@victorianfinance.com"
+                        $streetAddress = "2570 Boyce Plaza Rd"
+                        $company = "Victorian Finance, LLC"
+                        $city = "Pittsburgh"
+                        $state = "PA"
+                        $zipCode = "15241"
+                        $emailAddress = "$userName$upnSuffix"
+                        $ouPath = "OU=RemoteUsers,OU=Users,OU=Accounts,DC=$domain,DC=$domainExt"
+                        $ou = "RemoteUsers"
+                        $hasOfficeLocation = $true
+                        #$manager = "$mFirstChar$mLastName".ToLower()
+                        }
+                    else {
+                        Write-Warning "Script is not programmed to add users to OU for '$branch'. User has been created at OU 'USC' by default."
+                        $userName = "$firstChar$lastName".ToLower()
+                        $upnSuffix = "@victorianfinance.com"
+                        $streetAddress = "2570 Boyce Plaza Rd"
+                        $company = "Victorian Finance, LLC"
+                        $city = "Pittsburgh"
+                        $state = "PA"
+                        $zipCode = "15241"
+                        $emailAddress = "$userName$upnSuffix"
+                        $ouPath = "OU=USC,OU=Pennsylvania,OU=Users,OU=Accounts,DC=$domain,DC=$domainExt"
+                        $ou = "USC"
+                        $hasOfficeLocation = $true
+                        #$manager = "$mFirstChar$mLastName".ToLower()
+                        }
                     }
                 elseif ($officeLocation -eq "Boyce HQ") {
                     $userName = "$firstChar$lastName".ToLower()
