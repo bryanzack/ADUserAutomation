@@ -79,8 +79,74 @@ function Remove-Users {
 			for ($j=1; $j -lt $totalNoOfColumns; $j++) {
 				if ($WorkSheet.Cells.Item(3,$j).text -eq "Name") {
 					$name = $WorkSheet.Cells.Item($i,$j).text
+					$nameOut = $name.split()
+					$firstName = $nameOut[0]
+                                        $firstChar = $firstName.substring(0,1)
+					$lastName = $nameOut[1]
+
 					[String[]]$items += $name
 				}
+
+                                elseif ($WorkSheet.Cells.Item(3,$j).text -eq "Branch") {
+                                    $branch = $WorkSheet.Cells.Item($i,$j).text
+                                }
+
+                                elseif ($WorkSheet.Cells.Item(3,$j).text -eq "Office Location") {
+                                    $officeLocation = $WorkSheet.Cells.item($i,$j).text
+                                    if ($officeLocation -eq "") {
+                                        $userName = "$lastName".ToLower()
+                                        Write-Warning "No office location found for '$name', using convention '$userName' by default."
+                                    }
+                                    else{
+                                        if ($officeLocation -eq "Everett, WA") {
+                                            $userName = "$firstName".ToLower()
+                                            $ouPath = "OU=Everett,OU=Washington,OU=DwellMtg,OU=Users,OU=Accounts,DC=$domain,DC=$domainExt"
+                                            $ou = "Everett"
+                                            $hasOfficeLocation = $true
+                                        }
+                                        elseif ($officeLocation -eq "Boyce HQ") {
+                                            $userName = "$firstChar$lastName".ToLower()
+                                            $ouPath = "OU=USC,OU=Pennsylvania,OU=Users,OU=Accounts,DC=$domain,DC=$domainExt"
+                                            $ou = "USC"
+                                            $hasOfficeLocation = $true
+                                        }
+                                        elseif ($officeLocation -eq "Lafayette, LA") {
+                                            $userName = $firstName.ToLower()
+                                            $ouPath = "OU=Louisiana,OU=Users,OU=Accounts,DC=$domain,DC=$domainExt"
+                                            $ou = "Lousiana"
+                                            $hasOfficeLocation = $true
+                                        }
+                                        elseif ($officeLocation -eq "REMOTE") {
+                                            if ($branch -eq "7-Everett, WA") {
+                                                $userName = "$firstName".ToLower()
+                                                $ouPath = "OU=Everett,OU=Washington,OU=DwellMtg,OU=Users,OU=Accounts,DC=$domain,DC=$domainExt"
+                                                $ou = "Everett"
+                                                $hasOfficeLocation = $true    
+                                            }
+                                            elseif ($branch -eq "10000-Corporate") {
+                                                $userName = "$firstChar$lastName".ToLower()
+                                                $ouPath = "OU=USC,OU=Pennsylvania,OU=Users,OU=Accounts,DC=$domain,DC=$domainExt"
+                                                $ou = "USC"
+                                                $hasOfficeLocation = $true
+                                            }
+                                            else {
+                                                #Write-Warning "Script is not programmed to add users to OU for '$branch'. User has been created at OU 'USC' by default." 
+                                                $userName = "$firstChar$lastName".ToLower()       
+                                                $ouPath = "OU=USC,OU=Pennsylvania,OU=Users,OU=Accounts,DC=$domain,DC=$domainExt"
+                                                $ou = "USC"
+                                                $hasOfficeLocation = $true
+                                                #Write-Warning "Branch not recognized. Depending on it's naming convention the user '$name' might not be found. Default searching for '$userName'"
+                                            }
+                                        }
+                                        try {
+                                            Get-ADUser $userName
+                                            [String[]]$userNames += $userName
+                                        }
+                                        catch {
+                                            Write-Error $_
+                                        }
+                                    }
+                                }
 			}
 		}
 	}
@@ -89,6 +155,7 @@ function Remove-Users {
 	$form = New-Object System.Windows.Forms.Form
 	$form.StartPosition = 'CenterScreen'
 	$form.size = '600,800'
+	$form.Text = "Select users to remove"
 
 	$okButton = New-Object System.Windows.Forms.Button
 	$form.Controls.Add($okButton)
@@ -103,12 +170,15 @@ function Remove-Users {
 	$checkedlistbox.Dock = 'Fill'
 	$checkedlistbox.CheckOnClick = $true
 
-
-	$checkedlistbox.DataSource = [collections.arraylist]$items
+	$checkedlistbox.DataSource = [collections.arraylist]$userNames
 	$checkedlistbox.DisplayMember = 'Caption'
 
 	$form.ShowDialog()
-	Write-Output $checkedlistbox.CheckedItems
+        
+        $size = $checkedlistbox.CheckedItems.Count
+        if ($checkedlistbox.CheckedItems.Count -eq 0) {
+           Write-Warning "No users were selected for deletion. Terminating program." 
+        }
 }
 
 function Add-Users {
@@ -174,7 +244,7 @@ function Add-Users {
 		    # if header cell contains Department
 		    elseif ($WorkSheet.Cells.Item(3,$j).text -eq "Department") {
 			$department = $WorkSheet.Cells.Item($i,$j).text
-			if ($departmnet -eq $null) {
+			if ($department -eq $null) {
 			    $department = "N/A"
 			    }
 			}
@@ -308,7 +378,7 @@ function Add-Users {
 				-AccountPassword (ConvertTo-SecureString $password -AsPlainText -Force) -ChangePasswordAtLogon $False `
 				-OtherAttributes @{'title'=$jobTitle; `
 						   'department'=$department; `
-						   'displayName'="$lastName, $firstName"; `
+						   'displayName'= "$firstName $lastName"; `
 						   'userPrincipalName'="$userName$upnSuffix"; `
 						   'mail'=$emailAddress;}
 				$meetsRequirements = $true
