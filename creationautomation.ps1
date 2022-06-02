@@ -20,19 +20,18 @@
 ##  - "Everett, WA"
 
 
-# Imports necessary modules / creates Excel object to be iterated through. 
-# Comment out the Install-Module statement if running offline
-# Install-Module -Name PSExcel
 
 # Reads script arguments
 param(
 		[string]$p
      )
 
+
 Import-Module PSExcel
 Import-Module ActiveDirectory
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName PresentationFramework
+
 
 function Main-Function {
 	if($p -eq $null) {
@@ -43,9 +42,9 @@ function Main-Function {
 			Add-Users	
 		}
 		elseif($p -eq 'remove') {
-			$result = [System.Windows.MessageBox]::Show("WARNING: You are about to delete users from Active Directory", "Question", "YesNo", "Question")
+			$result = [System.Windows.MessageBox]::Show("WARNING: You are about to disable and wipe users from Active Directory. Continue?", "Question", "YesNo", "Question")
 			if ($result -eq 'Yes') {
-				Remove-Users
+				Disable-Users
 				}
 			else {
 				Write-Output "You chose NO"
@@ -58,7 +57,8 @@ function Main-Function {
 	}
 }
 
-function Remove-Users {
+
+function Disable-Users {
 	$FileBrowser = New-Object System.Windows.Forms.OpenFileDialog
 	[void]$FileBrowser.ShowDialog()
 	$ExcelFile = $FileBrowser.FileName
@@ -94,57 +94,56 @@ function Remove-Users {
                                 elseif ($WorkSheet.Cells.Item(3,$j).text -eq "Office Location") {
                                     $officeLocation = $WorkSheet.Cells.item($i,$j).text
                                     if ($officeLocation -eq "") {
-                                        $userName = "$lastName".ToLower()
-                                        Write-Warning "No office location found for '$name', using convention '$userName' by default."
+                                        $hasOfficeLocation = $false
+                                        $userName = "$firstChar$lastName".ToLower()
+                                        #$userName = "$lastname".ToLower()
+                                        Write-Warning "No office location found for '$name', search will use 'firstCharlastName' by default."
                                     }
                                     else{
+                                        $hasOfficeLocation = $true
                                         if ($officeLocation -eq "Everett, WA") {
                                             $userName = "$firstName".ToLower()
                                             $ouPath = "OU=Everett,OU=Washington,OU=DwellMtg,OU=Users,OU=Accounts,DC=$domain,DC=$domainExt"
                                             $ou = "Everett"
-                                            $hasOfficeLocation = $true
                                         }
                                         elseif ($officeLocation -eq "Boyce HQ") {
                                             $userName = "$firstChar$lastName".ToLower()
                                             $ouPath = "OU=USC,OU=Pennsylvania,OU=Users,OU=Accounts,DC=$domain,DC=$domainExt"
                                             $ou = "USC"
-                                            $hasOfficeLocation = $true
                                         }
                                         elseif ($officeLocation -eq "Lafayette, LA") {
                                             $userName = $firstName.ToLower()
                                             $ouPath = "OU=Louisiana,OU=Users,OU=Accounts,DC=$domain,DC=$domainExt"
                                             $ou = "Lousiana"
-                                            $hasOfficeLocation = $true
                                         }
                                         elseif ($officeLocation -eq "REMOTE") {
                                             if ($branch -eq "7-Everett, WA") {
                                                 $userName = "$firstName".ToLower()
                                                 $ouPath = "OU=Everett,OU=Washington,OU=DwellMtg,OU=Users,OU=Accounts,DC=$domain,DC=$domainExt"
                                                 $ou = "Everett"
-                                                $hasOfficeLocation = $true    
                                             }
                                             elseif ($branch -eq "10000-Corporate") {
                                                 $userName = "$firstChar$lastName".ToLower()
                                                 $ouPath = "OU=USC,OU=Pennsylvania,OU=Users,OU=Accounts,DC=$domain,DC=$domainExt"
                                                 $ou = "USC"
-                                                $hasOfficeLocation = $true
                                             }
                                             else {
                                                 #Write-Warning "Script is not programmed to add users to OU for '$branch'. User has been created at OU 'USC' by default." 
                                                 $userName = "$firstChar$lastName".ToLower()       
                                                 $ouPath = "OU=USC,OU=Pennsylvania,OU=Users,OU=Accounts,DC=$domain,DC=$domainExt"
                                                 $ou = "USC"
-                                                $hasOfficeLocation = $true
                                                 #Write-Warning "Branch not recognized. Depending on it's naming convention the user '$name' might not be found. Default searching for '$userName'"
                                             }
                                         }
-                                        try {
-                                            Get-ADUser $userName
+                                    }
+                                    try {
+                                        if(Get-ADUser $userName) {
+                                            #Write-Output "$username exists"
                                             [String[]]$userNames += $userName
                                         }
-                                        catch {
-                                            Write-Error $_
-                                        }
+                                    }
+                                    catch {
+                                        Write-Warning "User '$userName' was not found in Active Directory. "                                        
                                     }
                                 }
 			}
@@ -163,7 +162,9 @@ function Remove-Users {
 	$okButton.Height = 80
 	$okButton.Font = New-Object System.Drawing.Font("Times New Roman", 18, [System.Drawing.FontStyle]::Bold)
 	$okButton.Text = 'Ok'
-	$okButton.DialogResult = 'Ok'
+	$okButton.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
+        $okButtonClick = {$okButton.DialogResult = [System.Windows.Forms.DialogResult]::OK}
+        $okButton.Add_Click($okButtonClick)
 
 	$checkedlistbox = New-Object System.Windows.Forms.CheckedListBox
 	$form.Controls.Add($checkedlistbox)
@@ -176,10 +177,42 @@ function Remove-Users {
 	$form.ShowDialog()
         
         $size = $checkedlistbox.CheckedItems.Count
+
+        #Write-Output "dialogResult: " $okButton.DialogResult
+
         if ($checkedlistbox.CheckedItems.Count -eq 0) {
            Write-Warning "No users were selected for deletion. Terminating program." 
+           exit
+        }
+        else {
+            if ($okButton.DialogResult -notlike "Ok") {
+                $form.Close()
+                exit
+            }
+            else {                
+                Write-Host "Users to be disabled/wiped" -ForegroundColor Cyan
+                foreach ($_ in $checkedlistbox.CheckedItems) {
+                    Write-Host "* $_" -ForegroundColor Cyan
+                } 
+
+                $result = [System.Windows.MessageBox]::Show("WARNING: You are about to permenantly remove users from Active Directory. Continue?", "Question", "YesNo", "Question")
+                if ($result -eq "Yes") {
+                    foreach ($_ in $checkedlistbox.CheckedItems) {
+                        Set-ADUser `
+                        -Identity $_ `
+                        -Enabled $false `
+                        -Clear @('mail', 'title', 'department', 'company', 'manager', 'mobile', 'postalCode', 'st', 'streetAddress', 'telephoneNumber', 'url', 'physicalDeliveryOfficeName', 'l')
+
+                        Write-Host "Disabled $_" -ForegroundColor Cyan
+                    }
+                }
+                else {
+                    exit 
+                }
+            }
         }
 }
+
 
 function Add-Users {
 
@@ -420,8 +453,3 @@ function Add-Users {
 
 
 Main-Function
-
-
-
-
-
