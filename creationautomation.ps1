@@ -19,6 +19,12 @@
 ##  - "REMOTE"
 ##  - "Everett, WA"
 
+## TODO
+## Add implementation for OASIS MTG office location
+## if office location/branch is not recognized, let user know
+## fix username if the first two words of Name are not Firstname and Lastname
+## fix bug where accounts get created with wrong email
+## fix bug where warning is given about script not being programmed for an OU showing up before it checks if the user exists
 
 
 # Reads script arguments
@@ -236,10 +242,6 @@ function Add-Users {
 		    # if header cell contains Name
 		    if ($WorkSheet.Cells.Item(3,$j).text -eq "Name") {
 			$name = $WorkSheet.Cells.Item($i,$j).text
-			if ($name -match '!|@|#|\$') {
-			    Write-Warning "Name '$name' contains illegal characters"
-			    $name = Read-Host "New name for '$name'"
-			    }
 			foreach($_ in $name) {
 					$nameOut = $_.split()
 				}
@@ -331,7 +333,7 @@ function Add-Users {
 				#$manager = "$mFirstChar$mLastName".ToLower()
 				}
 			    else {
-				Write-Warning "Script is not programmed to add users to OU for '$branch'. User has been created at OU 'USC' by default."
+				Write-Warning "Script is not programmed to fill in user information for REMOTE office locations with branch '$branch'. User will be created under OU RemoteUsers with Boyce location information."
 				$userName = "$firstChar$lastName".ToLower()
 				$upnSuffix = "@victorianfinance.com"
 				$streetAddress = "2570 Boyce Plaza Rd"
@@ -340,7 +342,7 @@ function Add-Users {
 				$state = "PA"
 				$zipCode = "15241"
 				$emailAddress = "$userName$upnSuffix"
-				$ouPath = "OU=USC,OU=Pennsylvania,OU=Users,OU=Accounts,DC=$domain,DC=$domainExt"
+				$ouPath = "OU=RemoteUsers,OU=Users,OU=Accounts,DC=$domain,DC=$domainExt"
 				$ou = "USC"
 				$hasOfficeLocation = $true
 				#$manager = "$mFirstChar$mLastName".ToLower()
@@ -375,10 +377,10 @@ function Add-Users {
 			    #$manager = "$mFirstName".ToLower()
 			    }
 			else {
-			    #Write-Warning "No office location found for $name, AD account will be empty."
+			    Write-Warning "Office location '$officeLocation' for '$name' is not recognized, account will be created under USC by default with empty location information."
 			    $hasOfficeLocation = $false
 			    $username = "$firstChar$lastName".ToLower()
-			    
+			    $ouPath = "OU=USC,OU=Pennsylvania,OU=Users,OU=Accounts,DC=$domain,DC=$domainExt"
 			    }            
 			}
 		    }
@@ -394,26 +396,44 @@ function Add-Users {
 			$meetsRequirements = $false 
 			while (!$meetsRequirements) {
 			    try {
-				$password = Read-Host "password for $name ($userName)"
-				#Write-Output $hasManager
-				New-ADUser `
-				-Enabled $true `
-				-Path $ouPath `
-				-Name $name `
-				-SamAccountName $userName `
-				-GivenName $firstName `
-				-Surname $lastName `
-				-Company $company `
-				-Street $streetAddress `
-				-City $city `
-				-State $state `
-				-postalCode $zipCode `
-				-AccountPassword (ConvertTo-SecureString $password -AsPlainText -Force) -ChangePasswordAtLogon $False `
-				-OtherAttributes @{'title'=$jobTitle; `
-						   'department'=$department; `
-						   'displayName'= "$firstName $lastName"; `
-						   'userPrincipalName'="$userName$upnSuffix"; `
-						   'mail'=$emailAddress;}
+                                if ($hasOfficeLocation) {
+                                    $password = Read-Host "password for $name ($userName)"
+                                    #Write-Output $hasManager
+                                    New-ADUser `
+                                    -Enabled $true `
+                                    -Path $ouPath `
+                                    -Name $name `
+                                    -SamAccountName $userName `
+                                    -GivenName $firstName `
+                                    -Surname $lastName `
+                                    -Company $company `
+                                    -Street $streetAddress `
+                                    -City $city `
+                                    -State $state `
+                                    -postalCode $zipCode `
+                                    -AccountPassword (ConvertTo-SecureString $password -AsPlainText -Force) -ChangePasswordAtLogon $False `
+                                    -OtherAttributes @{'title'=$jobTitle; `
+                                                       'department'=$department; `
+                                                       'displayName'= "$firstName $lastName"; `
+                                                       'userPrincipalName'="$userName$upnSuffix"; `
+                                                       'mail'=$emailAddress;}
+                                }
+                                else {
+                                    $password = Read-Host "password for $name ($userName)"
+                                    New-ADUser `
+                                    -Enabled $true `
+                                    -Path  $ouPath `
+                                    -Name $name `
+                                    -SamAccountName $userName `
+                                    -GivenName $firstName `
+                                    -Surname $lastName `
+                                    -Company $company `
+                                    -AccountPassword (ConvertTo-SecureString $password -AsPlainText -Force) -ChangePasswordAtLogon $False `
+                                    -OtherAttributes @{'title'=$jobTitle; `
+                                                       'department'=$department; `
+                                                       'displayName'="$firstName $lastName"; `
+                                                       'userPrincipalName'="$userName$upnSuffix";}
+                                }
 				$meetsRequirements = $true
 				Write-Host "The user account '$userName' has been created." -ForegroundColor Cyan
 
