@@ -122,6 +122,11 @@ function Disable-Users {
                                             $ouPath = "OU=Louisiana,OU=Users,OU=Accounts,DC=$domain,DC=$domainExt"
                                             $ou = "Lousiana"
                                         }
+                                        elseif ($officeLocation -eq "Panama City, FL") {
+                                            $userName = "$firstChar$lastName".ToLower()
+                                            $ouPath = "OU=OasisMTG,OU=Users,OU=Accounts,DC=$domain,DC=$domainExt"
+                                            $ou = "OasisMTG"
+                                        }
                                         elseif ($officeLocation -eq "REMOTE") {
                                             if ($branch -eq "7-Everett, WA") {
                                                 $userName = "$firstName".ToLower()
@@ -141,11 +146,21 @@ function Disable-Users {
                                                 #Write-Warning "Branch not recognized. Depending on it's naming convention the user '$name' might not be found. Default searching for '$userName'"
                                             }
                                         }
+                                        else {
+                                            Write-Warning "Unrecognized office location '$officeLocation' for user '$name', program cannot determine naming convention to search for if no location info is provided."
+                                            Write-Output ""
+                                            $userName = ""
+                                        }
                                     }
                                     try {
-                                        if(Get-ADUser $userName) {
-                                            #Write-Output "$username exists"
-                                            [String[]]$userNames += $userName
+                                        if ($userName -ne "") {
+                                            if(Get-ADUser $userName) {
+                                                #Write-Output "$username exists"
+                                                [String[]]$userNames += $userName
+                                            }
+                                        }
+                                        else {
+                                            break
                                         }
                                     }
                                     catch {
@@ -376,6 +391,19 @@ function Add-Users {
 			    $hasOfficeLocation = $true
 			    #$manager = "$mFirstName".ToLower()
 			    }
+                        elseif ($officeLocation -eq "Panama City, FL") {
+                            $userName = "$firstChar$lastName".ToLower()
+                            $upnSuffix = "@oasismtg.com"
+                            $streetAddress = "160 Oasis, Panama City,  FL"
+                            $company = "Oasis Mortgage"
+                            $city = "Panama City"
+                            $state = "FL"
+                            $zipCode = "32405"
+                            $emailAddress = "$userName$upnSuffix"
+			    $ouPath = "OU=OasisMTG,OU=Users,OU=Accounts,DC=$domain,DC=$domainExt"
+                            $ou = "OasisMTG"
+                            $hasOfficeLocation = $true
+                            }
 			else {
 			    Write-Warning "Office location '$officeLocation' for '$name' is not recognized, account will be created under USC by default with empty location information."
 			    $hasOfficeLocation = $false
