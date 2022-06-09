@@ -392,8 +392,8 @@ function Add-Users {
 			    #$manager = "$mFirstName".ToLower()
 			    }
                         elseif ($officeLocation -eq "Panama City, FL") {
-                            $userName = "$firstChar$lastName".ToLower()
-                            $upnSuffix = "@oasismtg.com"
+                            $userName = "$firstName".ToLower()
+                            $upnSuffix = "@oasismortgage.net"
                             $streetAddress = "160 Oasis, Panama City,  FL"
                             $company = "Oasis Mortgage"
                             $city = "Panama City"
