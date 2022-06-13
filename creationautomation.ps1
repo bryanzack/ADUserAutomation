@@ -67,6 +67,7 @@ function connectExchange {
         $UserCredential = Get-Credential
         try {
             $Session = New-PSSession -ConfigurationName Microsoft.Exchange -ConnectionURI https://outlook.office365.com/powershell-liveid/ -Credential $UserCredential -Authentication Basic -AllowRedirection
+            Import-PSSession $Session
         }
         catch {
             Write-Output $_
@@ -232,34 +233,24 @@ function Disable-Users {
                 if ($result -eq "Yes") {
                     foreach ($_ in $checkedlistbox.CheckedItems) {
                         $emailObject = Get-ADUser -Identity $_ -Properties EmailAddress | select EmailAddress
-                        $managerObject = Get-ADUser -Identity $_ -Properties manager | Select-Object -Property @{label='Manager';expression={$_manager -replace '^CN=:,.*$'}}
                         $emailAddress = $emailObject.psobject.properties.value
-                        $manager = $managerObject.psobject.properties.value
-                        $managerEmailObject = Get-ADUser -Identity $manager -Properties EmailAddress | select EmailAddress
-                        $managerEmailAddress = $managerEmailObject.psobject.properties.value
-
-                        if ($manager -eq "") {
-                            Write-Output "Manager for $_ : NULL"
-                            $hasManager = $false
-                        }
-
-                            Write-Output "Manager for $_ : $manager"
-                        }
-
-                        if ($emailAddress -eq "") {
-                            Write-Output "Email address for $_ : NULL"
-                            Write-Output "Terminating program"
-                        }
-                        else {
-                            if (!$hasManager ) {
-                                $message = "I'm out of the office, please contact our main office at (888)333-0191"
-                                Set-MailboxAutoReplyConfiguration -Identity $emailAddress -AutoReplyState Enabled -InternalMessage $message -ExternalMessage $message
+                        if ($emailAddress -ne "") {
+                            $managerObject = Get-ADUser -Identity $_ -Properties manager | Select-Object -Property @{label='Manager';expression={$_manager -replace '^CN=:,.*$'}}
+                            $manager = $managerObject.psobject.properties.value
+                            if ($manager -ne "") {
+                                $managerEmailObject = Get-ADUser -Identity $manager -Properties EmailAddress | select EmailAddress
+                                $managerEmailAddress = $managerEmailObject.psobject.properties.value
+                                Set-MailboxAutoReplyConfiguration -Identity $emailAddress -AutoReplyState Enabled -InternalMessage "I'm out of the office, please contact $manager at $managerEmailAddress" -ExternalMessage "I'm out of the office, please contact $myManager at $myManagersEmail."
                             }
                             else {
-                                $message = "I'm out of the office, please contact $manager "
-                                Set-MailboxAutoReplyConfiguration -Identity $managerEmailAddress -AutoReplyState Enabled -InternalMessage $message -ExternalMessage $message
+                                Write-Warning "Manager is null"
+                                Set-MailboxAutoReplyConfiguration -Identity $emailAddress -AutoReplyState Enabled -InternalMessage "I'm out of the office, please contact our main office at (888)333-0191" -ExternalMessage "I'm out of the office, please contact our main office at (888)333-0191"
                             }
                         }
+                        else {
+                            Write-Warning "Email address is null"
+                        }
+                    }
 
 
                         Set-ADUser `
@@ -269,11 +260,11 @@ function Disable-Users {
 
                         Write-Host "Disabled $_" -ForegroundColor Cyan
                     }
+                    else {
+                        exit
+                    }
                 }
-                else {
-                    exit 
-                }
-        }
+            }
 }
 
 
