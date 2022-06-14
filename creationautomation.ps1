@@ -76,8 +76,9 @@ function connectExchange {
 
 }
 function Disable-Users {
-        connectExchange
-
+        #connectExchange
+        
+        # select the file and define the domain/domain extension
 	$FileBrowser = New-Object System.Windows.Forms.OpenFileDialog
 	[void]$FileBrowser.ShowDialog()
 	$ExcelFile = $FileBrowser.FileName
@@ -85,6 +86,132 @@ function Disable-Users {
 	$WorkBook = $objExcel | Get-Workbook
 	$domain = "victorianfinance"
 	$domainExt = "local"
+
+        # create form template
+        $newForm = New-Object System.Windows.Forms.Form
+        $newForm.topmost=$true
+        $newForm.Text="Select Users to Disable/Wipe"
+        $newForm.Location.x=400
+        $newForm.Location.y=400
+        $newform.size=New-Object System.Drawing.Size(900,600)
+        #$newForm.MaximumSize=New-Object System.Drawing.Size(400,500)
+        #$newForm.MinimumSize=New-Object System.Drawing.Size(400,500)
+        
+        # create main listview
+        $listview = New-Object System.Windows.Forms.ListView
+        $listview.Location = New-Object System.Drawing.Size(25,25)
+        $listview.size = New-Object System.Drawing.Size(350, 503)
+        $listview.Checkboxes=$true
+        $listView.name="main"
+        $listView.autoarrange=$true
+        $listview.gridlines=$true
+        $listview.multiselect=$true
+        $listview.View = "details"
+        $listview.headerstyle = 1
+        $listview.columns.add("User", -2) | out-null
+        $listview.columns.add("Name", -2) | out-null
+        $listview.columns.add("Term Date", -2) |out-null
+
+        # create the 'search' button
+        $searchBtn = New-Object System.Windows.Forms.Button
+        $searchBtn.Location = New-Object System.Drawing.Size(398,70)
+        $searchBtn.size = New-Object System.Drawing.Size(75,23)
+        $searchBtn.Text = "Find"
+        $searchBtn_Click = {
+            #Write-Host "Click"
+            if ($searchField.Text -ne "") {
+                try {
+                    if (Get-ADUser $searchField.Text) {
+                        Write-Host "User exists"
+                        $Name = Get-ADUser -Identity $searchField.Text -Properties Name | Select-Object -ExpandProperty Name
+                        $OUpath = Get-ADUser -Identity $searchField.Text -Properties DistinguishedName | Select-Object -ExpandProperty DistinguishedName
+                        $OUpatharray = $OUpath -split ","
+                        $resultview.items.clear()
+                        $item = New-Object System.Windows.Forms.ListViewItem($searchField.Text)
+                        $item.subitems.add($Name) | out-null
+                        $item.subitems.add($OUpatharray[1] + "," + $OUpatharray[2] + "," + $OUpatharray[3])
+                        $resultview.items.add($item) | out-null
+                        $resultview.AutoResizeColumns(1)
+                        $addBtn.Enabled = $true
+                    }
+                }
+                catch {
+                    #Write-Host $_
+                    Write-Host "User does not exist"
+                    $resultview.items.clear()
+                    $item = New-Object System.Windows.Forms.ListViewItem("DNE")
+                    $resultview.items.add($item)
+                    $resultview.AutoResizeColumns(1)
+                    $addBtn.Enabled = $false
+                }
+            }
+            else {
+                Write-Host "blank field"
+                $addBtn.Enabled = $false
+                $resultview.items.clear()
+            }
+        } 
+        $searchBtn.Add_Click($SearchBtn_Click)
+
+        Write-Output $searchBtn.Size
+
+        # create the search input field
+        $searchField = New-Object System.Windows.Forms.TextBox
+        $searchField.Location = New-Object System.Drawing.Point(478,70)
+        $searchField.Size = New-Object System.Drawing.Size(378,20)
+        $searchField.Text = "Search AD by username"
+
+        # create the search result listbox
+        $resultview = New-Object System.Windows.Forms.ListView
+        $resultview.Location = New-Object System.Drawing.Size(398,98)
+        $resultview.size = New-Object System.Drawing.Size(458,22)
+        $resultview.Checkboxes=$false
+        $resultview.name="search"
+        $resultview.autoarrange=$true
+        $resultview.gridlines=$true
+        $resultview.multiselect=$false
+        $resultview.View = "details"
+        $resultview.columns.add("User_____", -2) | out-null
+        $resultview.columns.add("Name_____", -2) | out-null
+        $resultview.columns.add("OUPath__________________", -2) | out-null
+        $resultview.headerstyle = 0
+        
+
+        # create the 'Add' button
+        $addBtn = New-Object System.Windows.Forms.Button
+        $addBtn.Location = New-Object System.Drawing.Size(398,124)
+        $addBtn.Size = New-Object System.Drawing.Size(458,22)
+        $addBtn.Text = "Add"
+        $addBtn.Enabled = $false
+        $addBtn_Click = {
+            Write-Host "Click"
+            $Name = Get-ADUser -Identity $searchField.Text -Properties Name | Select-Object -ExpandProperty Name
+            $item = New-Object System.Windows.Forms.ListViewItem($searchField.text)
+            $item.subitems.add($Name)
+            $item.subitems.add("N/A")
+            $listview.items.add($item)
+            
+        }
+        $addBtn.Add_Click($addBtn_Click)
+        
+        # create 'nuke' button'
+        $nukeBtn = New-Object System.Windows.Forms.Button
+        $nukeBtn.Location = New-Object System.Drawing.Size(398,487)
+        $nukeBtn.Size = New-Object System.Drawing.Size(458, 40)
+        $nukeBtn.Font = [System.Drawing.Font]::new("Microsoft Sans Serif", 12, [System.Drawing.Fontstyle]::Bold)
+        $nukeBtn.Text = "NUKE"
+        $nukeBtn_Click = {
+            #Write-Host "Nuke"
+            foreach($item in $listview.CheckedItems) {
+                $user = Get-ADUSer -Identity $item.text
+                $output = $user | Format-List -Property * | Out-String
+                Write-Host $output
+
+            }
+        }
+        $nukeBtn.Add_Click($nukeBtn_Click)
+
+
 
 
 
@@ -109,7 +236,9 @@ function Disable-Users {
                                 elseif ($WorkSheet.Cells.Item(3,$j).text -eq "Branch") {
                                     $branch = $WorkSheet.Cells.Item($i,$j).text
                                 }
-
+                                elseif ($WorkSheet.Cells.Item(3,$j).text -eq "Termination Date") {
+                                    $termDate = $WorkSheet.Cells.item($i,$j).text
+                                }
                                 elseif ($WorkSheet.Cells.Item(3,$j).text -eq "Office Location") {
                                     $officeLocation = $WorkSheet.Cells.item($i,$j).text
                                     if ($officeLocation -eq "") {
@@ -160,8 +289,8 @@ function Disable-Users {
                                             }
                                         }
                                         else {
-                                            Write-Warning "Unrecognized office location '$officeLocation' for user '$name', program cannot determine naming convention to search for if no location info is provided."
-                                            Write-Output ""
+                                            #Write-Warning "Unrecognized office location '$officeLocation' for user '$name', program cannot determine naming convention to search for if no location info is provided."
+                                            #$Write-Output ""
                                             $userName = ""
                                         }
                                     }
@@ -169,7 +298,12 @@ function Disable-Users {
                                         if ($userName -ne "") {
                                             if(Get-ADUser $userName) {
                                                 #Write-Output "$username exists"
-                                                [String[]]$userNames += $userName
+                                                #[String[]]$userNames += $userName
+                                                #Write-Output "$_"
+                                                $item = New-Object System.Windows.Forms.ListViewItem($userName)
+                                                $item.subitems.add($name) | out-null
+                                                $item.subitems.add($termDate) | out-null
+                                                $listview.items.add($item) | out-null
                                             }
                                         }
                                         else {
@@ -177,94 +311,27 @@ function Disable-Users {
                                         }
                                     }
                                     catch {
-                                        Write-Warning "User '$userName' was not found in Active Directory. "                                        
+                                        #Write-Output $_
+                                        #Write-Output ""
+                                        Write-Warning "User '$name' ($userName) was not found in Active Directory. "
                                     }
                                 }
 			}
 		}
 	}
 
-	# create checkbox form
-	$form = New-Object System.Windows.Forms.Form
-	$form.StartPosition = 'CenterScreen'
-	$form.size = '600,800'
-	$form.Text = "Select users to remove"
-
-	$okButton = New-Object System.Windows.Forms.Button
-	$form.Controls.Add($okButton)
-	$okButton.Dock = 'Bottom'
-	$okButton.Height = 80
-	$okButton.Font = New-Object System.Drawing.Font("Times New Roman", 18, [System.Drawing.FontStyle]::Bold)
-	$okButton.Text = 'Ok'
-	$okButton.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
-        $okButtonClick = {$okButton.DialogResult = [System.Windows.Forms.DialogResult]::OK}
-        $okButton.Add_Click($okButtonClick)
-
-	$checkedlistbox = New-Object System.Windows.Forms.CheckedListBox
-	$form.Controls.Add($checkedlistbox)
-	$checkedlistbox.Dock = 'Fill'
-	$checkedlistbox.CheckOnClick = $true
-
-	$checkedlistbox.DataSource = [collections.arraylist]$userNames
-	$checkedlistbox.DisplayMember = 'Caption'
-
-	$form.ShowDialog()
-        
-        $size = $checkedlistbox.CheckedItems.Count
-
-        #Write-Output "dialogResult: " $okButton.DialogResult
-
-        if ($checkedlistbox.CheckedItems.Count -eq 0) {
-           Write-Warning "No users were selected for deletion. Terminating program." 
-           exit
-        }
-        else {
-            if ($okButton.DialogResult -notlike "Ok") {
-                $form.Close()
-                exit
-            }
-            else {                
-                Write-Host "Users to be disabled/wiped" -ForegroundColor Cyan
-                foreach ($_ in $checkedlistbox.CheckedItems) {
-                    Write-Host "* $_" -ForegroundColor Cyan
-                } 
-
-                $result = [System.Windows.MessageBox]::Show("WARNING: You are about to permenantly remove users from Active Directory. Continue?", "Question", "YesNo", "Question")
-                if ($result -eq "Yes") {
-                    foreach ($_ in $checkedlistbox.CheckedItems) {
-                        $emailObject = Get-ADUser -Identity $_ -Properties EmailAddress | select EmailAddress
-                        $emailAddress = $emailObject.psobject.properties.value
-                        if ($emailAddress -ne "") {
-                            $managerObject = Get-ADUser -Identity $_ -Properties manager | Select-Object -Property @{label='Manager';expression={$_manager -replace '^CN=:,.*$'}}
-                            $manager = $managerObject.psobject.properties.value
-                            if ($manager -ne "") {
-                                $managerEmailObject = Get-ADUser -Identity $manager -Properties EmailAddress | select EmailAddress
-                                $managerEmailAddress = $managerEmailObject.psobject.properties.value
-                                Set-MailboxAutoReplyConfiguration -Identity $emailAddress -AutoReplyState Enabled -InternalMessage "I'm out of the office, please contact $manager at $managerEmailAddress" -ExternalMessage "I'm out of the office, please contact $myManager at $myManagersEmail."
-                            }
-                            else {
-                                Write-Warning "Manager is null"
-                                Set-MailboxAutoReplyConfiguration -Identity $emailAddress -AutoReplyState Enabled -InternalMessage "I'm out of the office, please contact our main office at (888)333-0191" -ExternalMessage "I'm out of the office, please contact our main office at (888)333-0191"
-                            }
-                        }
-                        else {
-                            Write-Warning "Email address is null"
-                        }
-                    }
+        $newForm.controls.add($searchBtn)
+        $newForm.controls.add($searchField)
+        $newForm.controls.add($resultview)
+        $newForm.controls.add($addBtn)
+        $newForm.controls.add($nukeBtn)
+        $newForm.controls.add($listview) 
 
 
-                        Set-ADUser `
-                        -Identity $_ `
-                        -Enabled $false `
-                        -Clear @('mail', 'title', 'department', 'company', 'manager', 'mobile', 'postalCode', 'st', 'streetAddress', 'telephoneNumber', 'url', 'physicalDeliveryOfficeName', 'l')
+        $newForm.showdialog()
 
-                        Write-Host "Disabled $_" -ForegroundColor Cyan
-                    }
-                    else {
-                        exit
-                    }
-                }
-            }
+
+
 }
 
 
