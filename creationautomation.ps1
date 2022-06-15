@@ -48,14 +48,8 @@ function Main-Function {
 			Add-Users	
 		}
 		elseif($p -eq 'remove') {
-			$result = [System.Windows.MessageBox]::Show("WARNING: You are about to disable and wipe users from Active Directory. Continue?", "Question", "YesNo", "Question")
-			if ($result -eq 'Yes') {
-				Disable-Users
-				}
-			else {
-				Write-Output "You chose NO"
-					exit
-				}
+		        connectExchange
+                        Disable-Users
 			}
 	else {
 		Write-Warning "Invalid argument. Use 'add' or 'remove'."
@@ -94,13 +88,14 @@ function Disable-Users {
         $newForm.Location.x=400
         $newForm.Location.y=400
         $newform.size=New-Object System.Drawing.Size(900,600)
-        #$newForm.MaximumSize=New-Object System.Drawing.Size(400,500)
-        #$newForm.MinimumSize=New-Object System.Drawing.Size(400,500)
+        $newForm.MaximumSize=New-Object System.Drawing.Size(900,600)
+        $newForm.MinimumSize=New-Object System.Drawing.Size(900,600)
         
         # create main listview
         $listview = New-Object System.Windows.Forms.ListView
         $listview.Location = New-Object System.Drawing.Size(25,25)
-        $listview.size = New-Object System.Drawing.Size(350, 503)
+        #$listview.size = New-Object System.Drawing.Size(350, 503)
+        $listview.size = New-Object System.Drawing.Size(350, 437)
         $listview.Checkboxes=$true
         $listView.name="main"
         $listView.autoarrange=$true
@@ -160,6 +155,46 @@ function Disable-Users {
         $searchField.Location = New-Object System.Drawing.Point(478,70)
         $searchField.Size = New-Object System.Drawing.Size(378,20)
         $searchField.Text = "Search AD by username"
+        $searchField.Add_KeyDown({
+            if ($_.KeyCode -eq "Return") {
+                #$searchBtn_Click
+                $_.SuppressKeyPress = $true
+
+                if ($searchField.Text -ne "") {
+                    try {
+                        if (Get-ADUser $searchField.Text) {
+                            Write-Host "User exists"
+                            $Name = Get-ADUser -Identity $searchField.Text -Properties Name | Select-Object -ExpandProperty Name
+                            $OUpath = Get-ADUser -Identity $searchField.Text -Properties DistinguishedName | Select-Object -ExpandProperty DistinguishedName
+                            $OUpatharray = $OUpath -split ","
+                            $resultview.items.clear()
+                            $item = New-Object System.Windows.Forms.ListViewItem($searchField.Text)
+                            $item.subitems.add($Name) | out-null
+                            $item.subitems.add($OUpatharray[1] + "," + $OUpatharray[2] + "," + $OUpatharray[3])
+                            $resultview.items.add($item) | out-null
+                            $resultview.AutoResizeColumns(1)
+                            $addBtn.Enabled = $true
+                        }
+                    }
+                    catch {
+                        #Write-Host $_
+                        Write-Host "User does not exist"
+                        $resultview.items.clear()
+                        $item = New-Object System.Windows.Forms.ListViewItem("DNE")
+                        $resultview.items.add($item)
+                        $resultview.AutoResizeColumns(1)
+                        $addBtn.Enabled = $false
+                    }
+                }
+                else {
+                    Write-Host "blank field"
+                    $addBtn.Enabled = $false
+                    $resultview.items.clear()
+                }
+            }
+
+        })
+
 
         # create the search result listbox
         $resultview = New-Object System.Windows.Forms.ListView
@@ -202,18 +237,117 @@ function Disable-Users {
         $nukeBtn.Text = "NUKE"
         $nukeBtn_Click = {
             #Write-Host "Nuke"
-            foreach($item in $listview.CheckedItems) {
-                $user = Get-ADUSer -Identity $item.text
-                $output = $user | Format-List -Property * | Out-String
-                Write-Host $output
+            $progressBar.Visible = $true
+            $count = $listview.CheckedItems.Count
+            $percent
 
+            foreach($item in $listview.CheckedItems) {
+                $_ = $item.text
+
+                #retrieve email through upn
+                $emailaddress = Get-ADUser -Identity $_ -Properties UserPrincipalName | select-object -expandproperty userprincipalname
+                #get distinuishedname of manager
+                $managerName = Get-ADUser -Identity $_ -Properties manager | Select-Object -expandproperty manager
+
+                
+                Write-Host $_
+                Write-Host $emailAddress
+                if ($managerName -ne $null) {
+                    $managername = $managerName.split(",")[0].replace('CN=','')
+                    $managerEmail = Get-ADUser -Filter "Name -eq '$managerName'" | select-object -expandproperty userprincipalname
+                    $message = "I'm out of the office, please contact $managerName at ", $managerEmail.ToLower()
+                    Write-Host $managerName
+
+                }
+                else {
+
+                    $message = "I'm out of the office, please contact our main office at (888)333-0191"
+                    Write-Host "NULL MANAGER"
+                }
+
+                Write-Host $message
+                Write-Host ""
+    
+                # set out of office
+                try {
+                    $progressBar.text = "Setting out of office message for $_..."
+                    Set-MailboxAutoReplyConfiguration -Identity $emailAddress -AutoReplyState Enabled -InternalMessage $message -ExternalMessage $message
+                    Write-Host "Set out of office for $_" -foregroundcolor cyan     
+                    try {
+                        $progressBar.text = "Disabling and wiping info for $_..."
+                        # disable users
+                        $userName = Get-ADUser -Identity $_ -Properties SamAccountName | Select-Object -ExpandProperty SamAccountName
+                        Set-ADUser `
+                        -Identity $_ `
+                        -Enabled $false `
+                        -Clear @('mail', 'title', 'department', 'company', 'manager', 'mobile', 'postalCode', 'st', 'streetAddress', 'telephoneNumber', 'url', 'physicalDeliveryOfficeName', 'l')
+                        Write-Host "Disabled $_" -ForegroundColor Cyan
+
+                        $percent += (100/$count)
+                        $progressBar.Value = $percent
+                        $progressBar.text = "DONE" 
+                    }
+                    catch {
+                        Write-Host $_
+                        $progressBar.visible = $false
+                    }
+                }
+                catch {
+                    Write-Host $_
+                    $progressBar.visible = $false
+                }
+                if ($progressbar.value -eq 100) {
+                    Start-Sleep -s 1
+                    $progressBar.visible = $false
+                    $progressBar.value = 0
+                }
             }
+            $progressBar.value = 0
+            $progressBar.visible = $false
         }
         $nukeBtn.Add_Click($nukeBtn_Click)
 
+        # create the 'select all' button
+        $selectBtn = New-Object System.Windows.Forms.Button
+        $selectBtn.Location = New-Object System.Drawing.Size(25,487)
+        $selectBtn.Size = New-Object System.Drawing.Size(172, 40)
+        $selectBtn.Text = "Select All"
+        $selectBtn_Click = {
+            foreach ($item in $listview.items) {
+               $item.Checked = $true
+            }
+        }
+        $selectBtn.Add_Click($selectBtn_click)
 
+        #create the "unselect all' button
+        $unSelectBtn = New-Object System.Windows.Forms.Button
+        $unSelectBtn.Location = New-Object System.Drawing.Size(203,487)
+        $unSelectBtn.Size = New-Object System.Drawing.Size(172, 40)
+        $unSelectBtn.Text = "Deselect All"
+        $unSelectBtn_Click = {
+            foreach ($item in $listview.items) {
+               $item.Checked = $false
+            }
+        }
+        $unSelectBtn.Add_Click($unSelectBtn_click)
 
+        # create progress bar
+        $progressBar = New-Object System.Windows.Forms.ProgressBar
+        $progressBar.Name = 'progressBar'
+        $progressBar.Value = 0
+        $progressBar.Style = "Continuous"
+        $progressBar.Size = New-Object System.Drawing.Size(456,30)
+        $progressBar.Location = New-Object System.Drawing.Size(400,440)
+        $progressBar.visible = $false
+        $progressBar.RightToLeftLayout = $false
 
+        # create progress bar text overlay
+        $barOverlay = New-Object System.Windows.Forms.Label
+        $barOverlay.Size = New-Object System.Drawing.Size(400,40)
+        $barOverlay.Location = New-Object system.Drawing.Size(456,440)
+        $barOverlay.text = "SAMPLE TEXT SAMPLE TEXT SAMPLE TEXT"
+        $barOverlay.visible = $false
+        #$barOverlay.controls.bringtofront = $true
 
 	# Iterate through each worksheet (1 in this case)
 	ForEach($WorkSheet in @($Workbook.Worksheets)) {
@@ -325,6 +459,10 @@ function Disable-Users {
         $newForm.controls.add($resultview)
         $newForm.controls.add($addBtn)
         $newForm.controls.add($nukeBtn)
+        $newForm.controls.add($selectBtn)
+        $newForm.controls.add($unSelectBtn)
+        $newForm.controls.add($progressBar)
+        $newForm.controls.add($barOverlay)
         $newForm.controls.add($listview) 
 
 
@@ -598,6 +736,5 @@ function Add-Users {
 		}
 	}
 }
-
 
 Main-Function
