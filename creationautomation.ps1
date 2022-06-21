@@ -58,6 +58,7 @@ function Main-Function {
 }
 
 function connectExchange {
+        Remove-PSSession *
         $UserCredential = Get-Credential
         try {
             $Session = New-PSSession -ConfigurationName Microsoft.Exchange -ConnectionURI https://outlook.office365.com/powershell-liveid/ -Credential $UserCredential -Authentication Basic -AllowRedirection
@@ -116,10 +117,12 @@ function Disable-Users {
             #Write-Host "Click"
             if ($searchField.Text -ne "") {
                 try {
-                    if (Get-ADUser $searchField.Text) {
+                    if (Get-ADUser -Filter {displayName -like $searchField.Text}) {
                         Write-Host "User exists"
-                        $Name = Get-ADUser -Identity $searchField.Text -Properties Name | Select-Object -ExpandProperty Name
-                        $OUpath = Get-ADUser -Identity $searchField.Text -Properties DistinguishedName | Select-Object -ExpandProperty DistinguishedName
+                        #$Name = Get-ADUser -Identity $searchField.Text -Properties Name | Select-Object -ExpandProperty Name
+                        #$OUpath = Get-ADUser -Identity $searchField.Text -Properties DistinguishedName | Select-Object -ExpandProperty DistinguishedName
+                        $Name = Get-ADUser -Filter {displayName -Like $searchField.Text} -Properties samAccountName | Select-Object -ExpandProperty samAccountName
+                        $OUpath = Get-ADUser -Filter {displayName -Like $searchField.Text} -Properties DistinguishedName | Select-Object -ExpandProperty DistinguishedName
                         $OUpatharray = $OUpath -split ","
                         $resultview.items.clear()
                         $item = New-Object System.Windows.Forms.ListViewItem($searchField.Text)
@@ -128,6 +131,14 @@ function Disable-Users {
                         $resultview.items.add($item) | out-null
                         $resultview.AutoResizeColumns(1)
                         $addBtn.Enabled = $true
+                    }
+                    else {
+                        Write-Host "No users found"
+                        $resultview.items.clear()
+                        $item = New-Object System.Windows.Forms.ListViewItem("DNE")
+                        $resultview.items.add($item)
+                        $resultview.AutoResizeColumns(1)
+                        $addBtn.Enabled = $false
                     }
                 }
                 catch {
@@ -154,7 +165,7 @@ function Disable-Users {
         $searchField = New-Object System.Windows.Forms.TextBox
         $searchField.Location = New-Object System.Drawing.Point(478,70)
         $searchField.Size = New-Object System.Drawing.Size(378,20)
-        $searchField.Text = "Search AD by username"
+        $searchField.Text = "Search AD by full name"
         $searchField.Add_KeyDown({
             if ($_.KeyCode -eq "Return") {
                 #$searchBtn_Click
@@ -162,10 +173,12 @@ function Disable-Users {
 
                 if ($searchField.Text -ne "") {
                     try {
-                        if (Get-ADUser $searchField.Text) {
+                        if (Get-ADUser -Filter {displayName -like $searchField.Text}) {
                             Write-Host "User exists"
-                            $Name = Get-ADUser -Identity $searchField.Text -Properties Name | Select-Object -ExpandProperty Name
-                            $OUpath = Get-ADUser -Identity $searchField.Text -Properties DistinguishedName | Select-Object -ExpandProperty DistinguishedName
+                            #$Name = Get-ADUser -Identity $searchField.Text -Properties Name | Select-Object -ExpandProperty Name
+                            #$OUpath = Get-ADUser -Identity $searchField.Text -Properties DistinguishedName | Select-Object -ExpandProperty DistinguishedName
+                            $Name = Get-ADUser -Filter {displayName -Like $searchField.Text} -Properties samAccountName | Select-Object -ExpandProperty samAccountName
+                            $OUpath = Get-ADUser -Filter {displayName -Like $searchField.Text} -Properties DistinguishedName | Select-Object -ExpandProperty DistinguishedName
                             $OUpatharray = $OUpath -split ","
                             $resultview.items.clear()
                             $item = New-Object System.Windows.Forms.ListViewItem($searchField.Text)
@@ -174,6 +187,14 @@ function Disable-Users {
                             $resultview.items.add($item) | out-null
                             $resultview.AutoResizeColumns(1)
                             $addBtn.Enabled = $true
+                        }
+                        else {
+                            Write-Host "No users found"
+                            $resultview.items.clear()
+                            $item = New-Object System.Windows.Forms.ListViewItem("DNE")
+                            $resultview.items.add($item)
+                            $resultview.AutoResizeColumns(1)
+                            $addBtn.Enabled = $false
                         }
                     }
                     catch {
@@ -220,8 +241,10 @@ function Disable-Users {
         $addBtn.Enabled = $false
         $addBtn_Click = {
             Write-Host "Click"
-            $Name = Get-ADUser -Identity $searchField.Text -Properties Name | Select-Object -ExpandProperty Name
-            $item = New-Object System.Windows.Forms.ListViewItem($searchField.text)
+            $Name = Get-ADUser -Filter {displayName -like $searchField.Text} -Properties Name | Select-Object -ExpandProperty Name
+            $samAccountName = Get-ADUser -Filter {displayName -Like $searchField.Text} -Properties samAccountName | Select-Object -ExpandProperty samAccountName
+            Write-Host $samAccountName;
+            $item = New-Object System.Windows.Forms.ListViewItem($samAccountName)
             $item.subitems.add($Name)
             $item.subitems.add("N/A")
             $listview.items.add($item)
@@ -383,7 +406,7 @@ function Disable-Users {
                                     }
                                     else{
                                         $hasOfficeLocation = $true
-                                        if ($officeLocation -eq "Everett, WA") {
+                                        if (($officeLocation -eq "Everett, WA") -or ($officeLocation -eq "Gilbert AZ")) {
                                             $userName = "$firstName".ToLower()
                                             $ouPath = "OU=Everett,OU=Washington,OU=DwellMtg,OU=Users,OU=Accounts,DC=$domain,DC=$domainExt"
                                             $ou = "Everett"
@@ -430,7 +453,8 @@ function Disable-Users {
                                     }
                                     try {
                                         if ($userName -ne "") {
-                                            if(Get-ADUser $userName) {
+                                            write-output $username
+                                            if((Get-ADUser $userName)) {
                                                 #Write-Output "$username exists"
                                                 #[String[]]$userNames += $userName
                                                 #Write-Output "$_"
