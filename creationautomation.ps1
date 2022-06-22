@@ -518,14 +518,15 @@ function Add-Users {
 		for ($j=1; $j -lt $totalNoOfColumns; $j++) {
 		    # if header cell contains Name
 		    if ($WorkSheet.Cells.Item(3,$j).text -eq "Name") {
-			$name = $WorkSheet.Cells.Item($i,$j).text
+			$Name = $WorkSheet.Cells.Item($i,$j).text
+                        # since HR will not put consistent item names in the boards, the name field must be brute forced into "firstname lastname" format with regex		
+                        $Name = ($Name -replace '\(.*\) ', '')
 			foreach($_ in $name) {
 					$nameOut = $_.split()
 				}
-				$firstName = $nameOut[0]
-				$firstChar = $firstName.substring(0,1)
-				$lastName = $nameOut[1]
-				
+                        $firstName = $nameOut[0]
+                        $firstChar = $firstName.substring(0,1)
+                        $lastName = $nameOut[1]
 			}
 		    # if header cell contains Job Title
 		    elseif ($WorkSheet.Cells.Item(3,$j).text -eq "Job Title") {
@@ -610,7 +611,8 @@ function Add-Users {
 				#$manager = "$mFirstChar$mLastName".ToLower()
 				}
 			    else {
-				Write-Warning "Script is not programmed to fill in user information for REMOTE office locations with branch '$branch'. User will be created under OU RemoteUsers with Boyce location information."
+                                $unknownBranch = $true
+				#Write-Warning "Script is not programmed to fill in user information for REMOTE office locations with branch '$branch'. User will be created under OU RemoteUsers with Boyce location information."
 				$userName = "$firstChar$lastName".ToLower()
 				$upnSuffix = "@victorianfinance.com"
 				$streetAddress = "2570 Boyce Plaza Rd"
@@ -676,10 +678,17 @@ function Add-Users {
 		    }
 
 		    # check and see if the generated username already exists as a user in the respective OU in Active Directory
-		    if (Get-ADUser -F { samaccountname -eq $userName} ) {
-			Write-Warning "User '$userName' already exists in ou '$ou'."
-			}
+		    if (Get-ADUser -F { displayName -eq $Name} ) {
+			Write-Warning "User '$Name' already exists in ou '$ou'."
+		    }
 		    else {
+
+                        #check if username exists in AD already, if so, change naming convention to first.last
+                        if (Get-ADUser -Identity $userName) {
+                            $existingName = Get-ADUser -Identity $userName -Properties Name | Select-Object -ExpandProperty Name
+                            Write-Warning "Username '$userName' is taken by '$existingName', using '$firstName.$lastName' instead"
+                            $userName = "$firstname.$lastName".ToLower()
+                        }
 			#$ouPath = "OU=USC,OU=Pennsylvania,OU=Users,OU=Accounts,DC=zacklabs,DC=com"
 			#Write-Output $ouPath
 			#$upnSuffix = "@zacklabs.com"
@@ -725,7 +734,14 @@ function Add-Users {
                                                        'userPrincipalName'="$userName$upnSuffix";}
                                 }
 				$meetsRequirements = $true
-				Write-Host "The user account '$userName' has been created." -ForegroundColor Cyan
+                                
+                                if (!$unknownBranch) {
+				    Write-Host "The user account '$userName' has been created." -ForegroundColor Cyan
+                                    Write-Warning "Script is not programmed to fill in user information for REMOTE office locations with branch '$branch'. User will be created under OU RemoteUsers with Boyce location information."
+                                } else {
+                                     
+				    Write-Host "The user account '$userName' has been created." -ForegroundColor Cyan
+                                }
 
 				if ($hasManager = $true) {
 				    #$targetManager = Get-ADUser -Identity $manager
@@ -750,8 +766,12 @@ function Add-Users {
 				Write-Warning "Manager '$manager' was not found, user '$userName' was created without one." -ErrorAction Ignore
 				
 			    }
+                            catch [Microsoft.ActiveDirectory.Management.ADIdentityAlreadyExistsException] {
+
+                            }
 			    # handles any other exception and writes it to host
 			    catch {
+                                Write-Host "EEEE"
 				Write-Output $_
 				}
 			    }
