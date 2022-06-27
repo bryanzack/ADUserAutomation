@@ -1,30 +1,8 @@
 #### PowerShell script to take an Excel.xlsx file, parse it for desired information, and use that information to 
 #### automatically create new user accounts in Active Directory
 
-## Desired information:
-##
-##  - First name      : pulled from "Name" header cell in excel file
-##  - Last name       : pulled from "Name" header cell in excel file
-##  - Username        : $lastName appended to the first letter of $firstName (Currently this is hard-coded for VicFin naming convention)
-##  - Job title       : pulled from "Job Title" header cell in excel file
-##  - Department      : pulled from "Department" header cell in excel file
-##  - Manager         : **In order to automate this part of the account, an Active Directory account needs to be matched from the contents of "Manager" header cell in the excel file
-##  - Password        : passord is input for each user
-##  - Office Location : this value is taken and used to search the active directory ou exactly where each user should be to determine if it exists, or not
-##  - Branch          : the branch matters when the office location is 'Remote'. the branch value is used to determine what attribute information the remote user should have. 
-
-## office locations implemented so far:
-##
-##  - "Boyce HQ"
-##  - "REMOTE"
-##  - "Everett, WA"
-
-## TODO
-## Add implementation for OASIS MTG office location
-## if office location/branch is not recognized, let user know
-## fix username if the first two words of Name are not Firstname and Lastname
-## fix bug where accounts get created with wrong email
-## fix bug where warning is given about script not being programmed for an OU showing up before it checks if the user exists
+## TODO as of 6/27/2022
+# * Change how script determines preexisting users from being hardcoded to an editable json file
 
 
 # Reads script arguments
