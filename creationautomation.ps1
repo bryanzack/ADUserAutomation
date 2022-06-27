@@ -58,17 +58,41 @@ function Main-Function {
 }
 
 function connectExchange {
-        Remove-PSSession *
-        $UserCredential = Get-Credential
-        try {
-            $Session = New-PSSession -ConfigurationName Microsoft.Exchange -ConnectionURI https://outlook.office365.com/powershell-liveid/ -Credential $UserCredential -Authentication Basic -AllowRedirection
-            Import-PSSession $Session
-        }
-        catch {
-            Write-Output $_
+
+        $currentPrincipal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
+        $isAdmin = $currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+
+        if ($isAdmin -eq $false) {
+            Write-Warning "Please run script with Administrator privileges"
             exit
         }
-
+        else {
+            $currentSessions = Get-PSSession
+            #write-warning "sessions: $currentSessions"
+            if ($currentSessions -eq $null) {
+                Write-Host "NO CURRENT SESSIONS"
+                try {
+                    $UserCredential = Get-Credential
+                    $Session = New-PSSession -ConfigurationName Microsoft.Exchange -ConnectionURI https://outlook.office365.com/powershell-liveid/ -Credential $UserCredential -Authentication Basic -AllowRedirection
+                    Import-PSSession $Session
+                }
+                catch {
+                    write-warning $_
+                }
+            }
+            else {
+                Write-Host "some sessions"
+                Remove-PSSession *
+                try {
+                    $UserCredential = Get-Credential
+                    $Session = New-PSSession -ConfigurationName Microsoft.Exchange -ConnectionURI https://outlook.office365.com/powershell-liveid/ -Credential $UserCredential -Authentication Basic -AllowRedirection
+                    Import-PSSession $Session
+                }
+                catch {
+                    write-warning $_
+                }
+            }
+        }
 }
 function Disable-Users {
         #connectExchange
@@ -580,8 +604,23 @@ function Add-Users {
 			    $ouPath = "OU=Everett,OU=Washington,OU=DwellMtg,OU=Users,OU=Accounts,DC=$domain,DC=$domainExt"
 			    $ou = "Everett"
 			    $hasOfficeLocation = $true
+                            $unknownBranch = $false
 			    #$manager = "$mFirstName".ToLower()
-			    }
+			}
+                        elseif ($officeLocation -eq "Hurricane, WV") {
+                            $userName = "$firstname".ToLower()
+                            $upnSuffix = "@myhomloan.com"
+                            $streetAddress = "3818 Teays Valley Road"
+                            $company = "Victorian Finance, LLC."
+                            $city = "Hurricane"
+                            $zipCode = "25526"
+                            $emailAddress = "$userName$upnSuffix"
+                            $ouPath = "OU=Teays Valley,OU=West Virginia,OU=Users,OU=Accounts,DC=$domain,DC=$domainExt"
+                            $ou = "Teays Valley"
+                            $hasOfficeLocation = $true
+                            $unknownBranch = $false
+                            write-host "HURRICANE"
+                        }
 			elseif ($officeLocation -eq "REMOTE") {
 			    if ($branch -eq "7-Everett, WA") {
 				$userName = "$firstName".ToLower()
@@ -595,6 +634,7 @@ function Add-Users {
 				$ouPath = "OU=RemoteUsers,OU=Users,OU=Accounts,DC=$domain,DC=$domainExt"
 				$ou = "RemoteUsers"
 				$hasOfficeLocation = $true
+                                $unknownBranch = $false
 				}
 			    elseif ($branch -eq "10000-Corporate") {
 				$userName = "$firstChar$lastName".ToLower()
@@ -608,8 +648,22 @@ function Add-Users {
 				$ouPath = "OU=RemoteUsers,OU=Users,OU=Accounts,DC=$domain,DC=$domainExt"
 				$ou = "RemoteUsers"
 				$hasOfficeLocation = $true
+                                $unknownBranch = $false
 				#$manager = "$mFirstChar$mLastName".ToLower()
 				}
+                            elseif ($branch -eq "50-Wyrick, WV") {    
+                                $userName = "$firstname".ToLower()
+                                $upnSuffix = "@myhomloan.com"
+                                $streetAddress = "3818 Teays Valley Road"
+                                $company = "Victorian Finance, LLC."
+                                $city = "Hurricane"
+                                $zipCode = "25526"
+                                $emailAddress = "$userName$upnSuffix"
+                                $ouPath = "OU=Teays Valley,OU=West Virginia,OU=Users,OU=Accounts,DC=$domain,DC=$domainExt"
+                                $ou = "Teays Valley"
+                                $hasOfficeLocation = $true
+                                $unknownBranch = $false
+                            }
 			    else {
                                 $unknownBranch = $true
 				#Write-Warning "Script is not programmed to fill in user information for REMOTE office locations with branch '$branch'. User will be created under OU RemoteUsers with Boyce location information."
@@ -639,6 +693,7 @@ function Add-Users {
 			    $ouPath = "OU=USC,OU=Pennsylvania,OU=Users,OU=Accounts,DC=$domain,DC=$domainExt"
 			    $ou = "USC"
 			    $hasOfficeLocation = $true
+                            $unknownBranch = $false
 			    #$manager = "$mFirstChar$mLastName".ToLower()
 			    }
 			elseif ($officeLocation -eq "Lafayette, LA") {
@@ -653,6 +708,7 @@ function Add-Users {
 			    $ouPath = "OU=Louisiana,OU=Users,OU=Accounts,DC=$domain,DC=$domainExt"
 			    $ou="Lousiana"
 			    $hasOfficeLocation = $true
+                            $unknownBranch = $false
 			    #$manager = "$mFirstName".ToLower()
 			    }
                         elseif ($officeLocation -eq "Panama City, FL") {
@@ -667,6 +723,7 @@ function Add-Users {
 			    $ouPath = "OU=OasisMTG,OU=Users,OU=Accounts,DC=$domain,DC=$domainExt"
                             $ou = "OasisMTG"
                             $hasOfficeLocation = $true
+                            $unknownBranch = $false
                             }
 			else {
 			    Write-Warning "Office location '$officeLocation' for '$name' is not recognized, account will be created under USC by default with empty location information."
@@ -684,11 +741,17 @@ function Add-Users {
 		    else {
 
                         #check if username exists in AD already, if so, change naming convention to first.last
-                        if (Get-ADUser -Identity $userName) {
-                            $existingName = Get-ADUser -Identity $userName -Properties Name | Select-Object -ExpandProperty Name
-                            Write-Warning "Username '$userName' is taken by '$existingName', using '$firstName.$lastName' instead"
-                            $userName = "$firstname.$lastName".ToLower()
+                        try {
+                            if (Get-ADUser -Identity $userName) {
+                                $existingName = Get-ADUser -Identity $userName -Properties Name | Select-Object -ExpandProperty Name
+                                Write-Warning "Username '$userName' is taken by '$existingName', using '$firstName.$lastName' instead"
+                                $userName = "$firstname.$lastName".ToLower()
+                            }
                         }
+                        catch {
+                            #write-warning "No user found with name '$Name' or samAccountName '$userName'"
+                        }
+
 			#$ouPath = "OU=USC,OU=Pennsylvania,OU=Users,OU=Accounts,DC=zacklabs,DC=com"
 			#Write-Output $ouPath
 			#$upnSuffix = "@zacklabs.com"
@@ -735,7 +798,7 @@ function Add-Users {
                                 }
 				$meetsRequirements = $true
                                 
-                                if (!$unknownBranch) {
+                                if ($unknownBranch) {
 				    Write-Host "The user account '$userName' has been created." -ForegroundColor Cyan
                                     Write-Warning "Script is not programmed to fill in user information for REMOTE office locations with branch '$branch'. User will be created under OU RemoteUsers with Boyce location information."
                                 } else {
