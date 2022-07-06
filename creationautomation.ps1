@@ -1,9 +1,9 @@
 #### PowerShell script to take an Excel.xlsx file, parse it for desired information, and use that information to 
-#### automatically create new user accounts in Active Directory
+#### both add and disable Active Directory users
 
 ## TODO as of 6/27/2022
 # * Change how script determines preexisting users from being hardcoded to an editable json file
-
+# * remove direct reports
 
 # Reads script arguments
 param(
@@ -530,13 +530,7 @@ function Add-Users {
                         $firstChar = $firstName.substring(0,1)
                         $lastName = $nameOut[1]
 			}
-		    # if header cell contains Job Title
-		    elseif ($WorkSheet.Cells.Item(3,$j).text -eq "Job Title") {
-			$jobTitle = $WorkSheet.Cells.Item($i,$j).text
-			if ($jobTitle -eq $null) {
-			    $jobTitle = "N/A"
-			    }
-			}
+
 		    # if header cell contains Manager
 		    elseif ($WorkSheet.Cells.Item(3,$j).text -eq "Manager") {
 			$manager = $WorkSheet.Cells.Item($i,$j).text
@@ -710,7 +704,21 @@ function Add-Users {
 			    $ouPath = "OU=USC,OU=Pennsylvania,OU=Users,OU=Accounts,DC=$domain,DC=$domainExt"
 			    }            
 			}
+		    # if header cell contains Job Title
+		    elseif ($WorkSheet.Cells.Item(3,$j).text -eq "Job Title") {
+			$jobTitle = $WorkSheet.Cells.Item($i,$j).text
+                        $loanOfficer = "Group_e4f091c5-2b89-47aa-ab1a-7f7275aa3a98"
+                         
+			if ($jobTitle -eq $null) {
+			    $jobTitle = "N/A"
+                            Write-Warning "No job title given"
+			    }
+                        elseif ($jobTitle -eq "Loan Officer") {
+                            Add-ADGroupMember -Identity $loanOfficer -members $userName
+                        }
 		    }
+                }
+
 
 		    # check and see if the generated username already exists as a user in the respective OU in Active Directory
 		    if (Get-ADUser -F { displayName -eq $Name} ) {
